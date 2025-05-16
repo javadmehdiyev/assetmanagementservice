@@ -1,0 +1,30 @@
+Yazılım Geliştirme Gereksinimleri (Go language)
+1. Dosya tabanlı IP blok tarama mekanizması
+
+Yazılım, bulunduğu dizindeki list.txt dosyasını okuyacak.
+
+Bu dosyada tanımlı IP blokları taranacak.
+
+list.txt dosyası dinamik olarak güncellenecek, yani admin panel üzerinden güncellenen IP blokları bu dosyaya yazılacak.
+
+2. Yerel network taraması
+
+Uygulama, çalıştığı cihazın bağlı olduğu yerel ağı otomatik tespit edip tarayacak.
+
+3. Arka planda çalışan servis
+
+Uygulama bir servis (daemon/service) olarak sürekli çalışacak.
+
+Silent mode ile çalışacak.
+
+4. Konfigürasyon dosyası desteği
+
+Uygulama config.json bir dosyadan konfigürasyon okuyacak.
+
+5. Asset Management
+
+Tespit edilen her varlık (IP, hostname, açık port, banner bilgisi vs.) kayıt altına alınacak.
+
+6. Otomasyon ve sürekli çalışma
+
+Yazılım başlatıldığında otomatik başlatma özelliğine sahip olacak, otomatik hareket edecek
