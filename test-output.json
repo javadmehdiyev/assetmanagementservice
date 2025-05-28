@@ -1,0 +1,15 @@
+{
+  "assets": [
+    {
+      "discovery_method": "TCP",
+      "ip": "192.168.123.1"
+    },
+    {
+      "discovery_method": "TCP",
+      "ip": "192.168.123.10"
+    }
+  ],
+  "scan_time": "4.849798614s",
+  "timestamp": "2025-05-28 21:21:44",
+  "total_hosts": 2
+}

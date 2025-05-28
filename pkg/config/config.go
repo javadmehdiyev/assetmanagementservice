@@ -22,91 +22,46 @@ type Config struct {
 	// Port scanning settings
 	PortScan PortScanConfig `json:"port_scan"`
 	
-	// Discovery settings
-	Discovery DiscoveryConfig `json:"discovery"`
-	
 	// File settings
 	Files FileConfig `json:"files"`
-	
-	// Logging settings
-	Logging LoggingConfig `json:"logging"`
 }
 
 // ServiceConfig contains service-level settings
 type ServiceConfig struct {
-	Name            string `json:"name"`
-	RunAsDaemon     bool   `json:"run_as_daemon"`
-	ScanInterval    string `json:"scan_interval"`    // e.g., "5m", "1h"
-	AutoStart       bool   `json:"auto_start"`
-	EnableWebUI     bool   `json:"enable_web_ui"`
-	WebUIPort       int    `json:"web_ui_port"`
+	Name         string `json:"name"`
+	RunAsDaemon  bool   `json:"run_as_daemon"`
+	ScanInterval string `json:"scan_interval"`    // e.g., "5m", "1h"
+	AutoStart    bool   `json:"auto_start"`
 }
 
 // NetworkConfig contains network scanning settings
 type NetworkConfig struct {
-	Interface         string   `json:"interface"`
-	AutoDetectLocal   bool     `json:"auto_detect_local"`
-	DefaultCIDR       string   `json:"default_cidr"`
-	ScanLocalNetwork  bool     `json:"scan_local_network"`
-	ScanFileList      bool     `json:"scan_file_list"`
-	EnableIPv6        bool     `json:"enable_ipv6"`
-	CustomDNSServers  []string `json:"custom_dns_servers"`
+	Interface       string `json:"interface"`
+	AutoDetectLocal bool   `json:"auto_detect_local"`
+	DefaultCIDR     string `json:"default_cidr"`
+	ScanLocalNetwork bool  `json:"scan_local_network"`
+	ScanFileList    bool   `json:"scan_file_list"`
 }
 
 // ARPConfig contains ARP scanning settings
 type ARPConfig struct {
-	Enabled       bool   `json:"enabled"`
-	Timeout       string `json:"timeout"`        // e.g., "2s", "3s"
-	Workers       int    `json:"workers"`
-	RateLimit     string `json:"rate_limit"`     // e.g., "100ms", "50ms"
-	RetryCount    int    `json:"retry_count"`
-	EnableVendor  bool   `json:"enable_vendor"`
+	Enabled   bool   `json:"enabled"`
+	Timeout   string `json:"timeout"`        // e.g., "2s", "3s"
+	Workers   int    `json:"workers"`
+	RateLimit string `json:"rate_limit"`     // e.g., "100ms", "50ms"
 }
 
 // PortScanConfig contains port scanning settings
 type PortScanConfig struct {
-	Enabled         bool     `json:"enabled"`
-	Timeout         string   `json:"timeout"`        // e.g., "2s", "5s"
-	Workers         int      `json:"workers"`
-	ScanTCP         bool     `json:"scan_tcp"`
-	ScanUDP         bool     `json:"scan_udp"`
-	CommonPorts     []int    `json:"common_ports"`
-	CustomPorts     []int    `json:"custom_ports"`
-	EnableBanner    bool     `json:"enable_banner"`
-	ServiceDetection bool    `json:"service_detection"`
-	ScanAllPorts    bool     `json:"scan_all_ports"`
-	PortRangeStart  int      `json:"port_range_start"`
-	PortRangeEnd    int      `json:"port_range_end"`
-}
-
-// DiscoveryConfig contains discovery settings
-type DiscoveryConfig struct {
-	EnableICMPPing        bool     `json:"enable_icmp_ping"`
-	EnableTCPSynDiscovery bool     `json:"enable_tcp_syn_discovery"`
-	ICMPTimeout           string   `json:"icmp_timeout"`
-	ICMPWorkers           int      `json:"icmp_workers"`
-	TCPDiscoveryPorts     []int    `json:"tcp_discovery_ports"`
-	CombineMethods        bool     `json:"combine_methods"`
+	Enabled bool   `json:"enabled"`
+	Timeout string `json:"timeout"`        // e.g., "2s", "5s"
+	Workers int    `json:"workers"`
 }
 
 // FileConfig contains file-related settings
 type FileConfig struct {
-	IPListFile      string `json:"ip_list_file"`
-	OutputFile      string `json:"output_file"`
-	LogFile         string `json:"log_file"`
-	DatabaseFile    string `json:"database_file"`
-	BackupEnabled   bool   `json:"backup_enabled"`
-	BackupInterval  string `json:"backup_interval"`
-}
-
-// LoggingConfig contains logging settings
-type LoggingConfig struct {
-	Level          string `json:"level"`           // debug, info, warn, error
-	EnableConsole  bool   `json:"enable_console"`
-	EnableFile     bool   `json:"enable_file"`
-	MaxFileSize    string `json:"max_file_size"`   // e.g., "100MB"
-	MaxBackups     int    `json:"max_backups"`
-	EnableSyslog   bool   `json:"enable_syslog"`
+	IPListFile   string `json:"ip_list_file"`
+	OutputFile   string `json:"output_file"`
 }
 
 // LoadConfig loads configuration from a JSON file
@@ -180,23 +135,6 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// Validate port ranges
-	if c.PortScan.PortRangeStart < 1 || c.PortScan.PortRangeStart > 65535 {
-		return fmt.Errorf("invalid port_range_start: must be 1-65535")
-	}
-	if c.PortScan.PortRangeEnd < 1 || c.PortScan.PortRangeEnd > 65535 {
-		return fmt.Errorf("invalid port_range_end: must be 1-65535")
-	}
-	if c.PortScan.PortRangeStart > c.PortScan.PortRangeEnd {
-		return fmt.Errorf("port_range_start cannot be greater than port_range_end")
-	}
-
-	// Validate logging level
-	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
-	if !validLevels[c.Logging.Level] {
-		return fmt.Errorf("invalid logging level: must be debug, info, warn, or error")
-	}
-
 	return nil
 }
 
@@ -240,8 +178,6 @@ func GetDefaultConfig() *Config {
 			RunAsDaemon:  true,
 			ScanInterval: "5m",
 			AutoStart:    true,
-			EnableWebUI:  false,
-			WebUIPort:    8080,
 		},
 		Network: NetworkConfig{
 			Interface:        "auto",
@@ -249,54 +185,21 @@ func GetDefaultConfig() *Config {
 			DefaultCIDR:      "192.168.1.0/24",
 			ScanLocalNetwork: true,
 			ScanFileList:     true,
-			EnableIPv6:       false,
-			CustomDNSServers: []string{"8.8.8.8", "8.8.4.4"},
 		},
 		ARP: ARPConfig{
-			Enabled:      true,
-			Timeout:      "2s",
-			Workers:      5,
-			RateLimit:    "100ms",
-			RetryCount:   2,
-			EnableVendor: true,
+			Enabled:   true,
+			Timeout:   "2s",
+			Workers:   5,
+			RateLimit: "100ms",
 		},
 		PortScan: PortScanConfig{
-			Enabled:          true,
-			Timeout:          "2s",
-			Workers:          50,
-			ScanTCP:          true,
-			ScanUDP:          false,
-			CommonPorts:      []int{21, 22, 23, 25, 53, 80, 110, 143, 443, 993, 995, 3389, 5900},
-			CustomPorts:      []int{},
-			EnableBanner:     true,
-			ServiceDetection: true,
-			ScanAllPorts:     false,
-			PortRangeStart:   1,
-			PortRangeEnd:     1024,
-		},
-		Discovery: DiscoveryConfig{
-			EnableICMPPing:        false,
-			EnableTCPSynDiscovery: false,
-			ICMPTimeout:           "3s",
-			ICMPWorkers:           10,
-			TCPDiscoveryPorts:     []int{22, 80, 443},
-			CombineMethods:        true,
+			Enabled: false,
+			Timeout: "2s",
+			Workers: 20,
 		},
 		Files: FileConfig{
 			IPListFile:     "list.txt",
 			OutputFile:     "assets.json",
-			LogFile:        "asset_manager.log",
-			DatabaseFile:   "assets.db",
-			BackupEnabled:  true,
-			BackupInterval: "24h",
-		},
-		Logging: LoggingConfig{
-			Level:         "info",
-			EnableConsole: true,
-			EnableFile:    true,
-			MaxFileSize:   "100MB",
-			MaxBackups:    5,
-			EnableSyslog:  false,
 		},
 	}
 } 

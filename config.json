@@ -3,55 +3,28 @@
     "name": "Asset Management Service",
     "run_as_daemon": true,
     "scan_interval": "5m",
-    "auto_start": true,
-    "enable_web_ui": false,
-    "web_ui_port": 8080
+    "auto_start": true
   },
   "network": {
     "interface": "auto",
     "auto_detect_local": true,
     "default_cidr": "192.168.123.0/24",
     "scan_local_network": true,
-    "scan_file_list": true,
-    "enable_ipv6": false,
-    "custom_dns_servers": ["8.8.8.8", "8.8.4.4"]
+    "scan_file_list": true
   },
   "arp": {
     "enabled": true,
-    "timeout": "2s",
-    "workers": 5,
-    "rate_limit": "100ms",
-    "retry_count": 2,
-    "enable_vendor": true
+    "timeout": "1s",
+    "workers": 10,
+    "rate_limit": "50ms"
   },
   "port_scan": {
     "enabled": true,
     "timeout": "2s",
-    "workers": 50,
-    "scan_tcp": true,
-    "scan_udp": false,
-    "common_ports": [21, 22, 23, 25, 53, 80, 110, 143, 443, 993, 995, 3389, 5900],
-    "custom_ports": [],
-    "enable_banner": true,
-    "service_detection": true,
-    "scan_all_ports": false,
-    "port_range_start": 1,
-    "port_range_end": 1024
+    "workers": 20
   },
   "files": {
     "ip_list_file": "list.txt",
-    "output_file": "assets.json",
-    "log_file": "asset_manager.log",
-    "database_file": "assets.db",
-    "backup_enabled": true,
-    "backup_interval": "24h"
-  },
-  "logging": {
-    "level": "info",
-    "enable_console": true,
-    "enable_file": true,
-    "max_file_size": "100MB",
-    "max_backups": 5,
-    "enable_syslog": false
+    "output_file": "assets.json"
   }
 } 
