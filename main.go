@@ -3,73 +3,102 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
+	"os"
 
+	"assetmanager/pkg/config"
 	"assetmanager/pkg/network"
 )
 
 func main() {
-	// Choose which demo to run
-	demoCIDR := true           // CIDR to IP conversion demo
-	demoARP := false           // ARP scanning demo
-	demoPortScan := true       // Port scanning demo
-	demoAssetDiscovery := true // Asset discovery demo
-
-	if demoCIDR {
-		testCIDRConversion()
+	// Load configuration
+	configPath := "config.json"
+	if len(os.Args) > 1 {
+		configPath = os.Args[1]
 	}
 
+	cfg, err := config.LoadConfig(configPath)
+	if err != nil {
+		fmt.Printf("Warning: Failed to load config from %s: %v\n", configPath, err)
+		fmt.Println("Creating default configuration...")
+		
+		// Create default config and save it
+		cfg = config.GetDefaultConfig()
+		if err := config.SaveConfig(cfg, configPath); err != nil {
+			log.Fatalf("Failed to save default config: %v", err)
+		}
+		fmt.Printf("Default configuration saved to %s\n", configPath)
+	}
+
+	fmt.Printf("=== %s Started ===\n", cfg.Service.Name)
+	fmt.Printf("Configuration loaded from: %s\n", configPath)
+
+	// Choose which demo to run based on configuration
+	demoARP := cfg.ARP.Enabled
+	demoPortScan := cfg.PortScan.Enabled
+	demoAssetDiscovery := true // Always run asset discovery if enabled
+
 	if demoARP {
-		testARPScanner()
+		testARPScanner(cfg)
 	}
 
 	if demoPortScan {
-		testPortScanner()
+		testPortScanner(cfg)
 	}
 
 	if demoAssetDiscovery {
-		testAssetDiscovery()
+		testAssetDiscovery(cfg)
 	}
 }
 
-func testCIDRConversion() {
-	fmt.Println("\n=== CIDR to IP Conversion Demo ===")
-
-	// Example 1: Parse CIDR to IP range
-	cidr := "192.168.1.0/28"
-	ips, err := network.CIDRToIPRange(cidr)
-	if err != nil {
-		log.Fatalf("Failed to parse CIDR: %v", err)
-	}
-	fmt.Printf("CIDR %s contains %d IP addresses\n", cidr, len(ips))
-
-	// Example 2: Get local network CIDR
-	localCIDR, err := network.GetLocalNetworkCIDR()
-	if err != nil {
-		log.Printf("Failed to get local network CIDR: %v", err)
-	} else {
-		fmt.Printf("Local network CIDR: %s\n", localCIDR)
-	}
-}
-
-func testARPScanner() {
+func testARPScanner(cfg *config.Config) {
 	fmt.Println("\n=== ARP Scanner Demo ===")
 
-	// Create a parallel scanner with 5 workers and 100ms rate limit
-	scanner, err := network.NewParallelARPScanner("eth0", 2*time.Second, 5, 100*time.Millisecond)
+	// Get timeouts from configuration
+	arpTimeout, err := cfg.GetARPTimeout()
+	if err != nil {
+		log.Fatalf("Invalid ARP timeout in config: %v", err)
+	}
+
+	rateLimit, err := cfg.GetARPRateLimit()
+	if err != nil {
+		log.Fatalf("Invalid ARP rate limit in config: %v", err)
+	}
+
+	// Determine interface
+	interfaceName := cfg.Network.Interface
+	if interfaceName == "auto" {
+		// You might want to implement auto-detection logic here
+		interfaceName = "ens33" // fallback
+	}
+
+	// Create a parallel scanner with configuration values
+	scanner, err := network.NewParallelARPScanner(
+		interfaceName,
+		arpTimeout,
+		cfg.ARP.Workers,
+		rateLimit,
+	)
 	if err != nil {
 		log.Fatalf("Failed to create parallel ARP scanner: %v", err)
 	}
 	defer scanner.Close()
 
-	// Get local network for scanning
-	localCIDR, err := network.GetLocalNetworkCIDR()
-	if err != nil {
-		localCIDR = "172.26.52.43/28" // Fallback to a smaller range
+	// Get network to scan
+	var targetCIDR string
+	if cfg.Network.AutoDetectLocal {
+		localCIDR, err := network.GetLocalNetworkCIDR()
+		if err != nil {
+			fmt.Printf("Warning: Failed to auto-detect local network: %v\n", err)
+			targetCIDR = cfg.Network.DefaultCIDR
+		} else {
+			targetCIDR = localCIDR
+		}
+	} else {
+		targetCIDR = cfg.Network.DefaultCIDR
 	}
 
-	fmt.Printf("Scanning local network: %s\n", localCIDR)
-	results, err := scanner.ScanNetworkParallel(localCIDR)
+	fmt.Printf("Scanning network: %s\n", targetCIDR)
+	results, err := scanner.ScanNetworkParallel(targetCIDR)
 	if err != nil {
 		log.Fatalf("Parallel ARP scan failed: %v", err)
 	}
@@ -77,71 +106,147 @@ func testARPScanner() {
 	printARPResults(results)
 }
 
-func testPortScanner() {
+func testPortScanner(cfg *config.Config) {
 	fmt.Println("\n=== Port Scanner Demo ===")
 
-	// Create a port scanner
-	scanner := network.NewPortScanner(2*time.Second, 50, 1)
+	// Get timeout from configuration
+	portTimeout, err := cfg.GetPortScanTimeout()
+	if err != nil {
+		log.Fatalf("Invalid port scan timeout in config: %v", err)
+	}
 
-	// Scan localhost
+	// Create a port scanner with configuration values
+	scanner := network.NewPortScanner(portTimeout, cfg.PortScan.Workers, 1)
+
+	// Use a test IP - you might want to make this configurable too
 	ip := "127.0.0.1"
-	fmt.Printf("Scanning localhost (%s) for common ports...\n", ip)
+	fmt.Printf("Scanning %s for configured ports...\n", ip)
 
-	results, err := scanner.ScanHost(ip)
-	if err != nil {
-		log.Fatalf("Port scan failed: %v", err)
+	// If common ports are configured, scan them
+	if len(cfg.PortScan.CommonPorts) > 0 {
+		fmt.Printf("Scanning %d common ports...\n", len(cfg.PortScan.CommonPorts))
+		for _, port := range cfg.PortScan.CommonPorts {
+			if cfg.PortScan.ScanTCP {
+				results, err := scanner.ScanPorts(ip, port, port, network.ScanTCP)
+				if err != nil {
+					log.Printf("TCP port scan failed for port %d: %v", port, err)
+					continue
+				}
+				printPortResults(results)
+			}
+		}
 	}
 
-	printPortResults(results)
-
-	// Optional: Scan a specific port range
-	fmt.Printf("\nScanning port range 80-85 on %s...\n", ip)
-	rangeResults, err := scanner.ScanPorts(ip, 80, 85, network.ScanTCP)
-	if err != nil {
-		log.Fatalf("Port range scan failed: %v", err)
+	// If custom ports are configured, scan them
+	if len(cfg.PortScan.CustomPorts) > 0 {
+		fmt.Printf("Scanning %d custom ports...\n", len(cfg.PortScan.CustomPorts))
+		for _, port := range cfg.PortScan.CustomPorts {
+			if cfg.PortScan.ScanTCP {
+				results, err := scanner.ScanPorts(ip, port, port, network.ScanTCP)
+				if err != nil {
+					log.Printf("TCP port scan failed for port %d: %v", port, err)
+					continue
+				}
+				printPortResults(results)
+			}
+		}
 	}
 
-	printPortResults(rangeResults)
+	// If range scanning is enabled
+	if cfg.PortScan.PortRangeStart > 0 && cfg.PortScan.PortRangeEnd > 0 {
+		fmt.Printf("Scanning port range %d-%d on %s...\n", 
+			cfg.PortScan.PortRangeStart, cfg.PortScan.PortRangeEnd, ip)
+		
+		if cfg.PortScan.ScanTCP {
+			rangeResults, err := scanner.ScanPorts(ip, 
+				cfg.PortScan.PortRangeStart, 
+				cfg.PortScan.PortRangeEnd, 
+				network.ScanTCP)
+			if err != nil {
+				log.Fatalf("Port range scan failed: %v", err)
+			}
+			printPortResults(rangeResults)
+		}
+	}
 }
 
-func testAssetDiscovery() {
+func testAssetDiscovery(cfg *config.Config) {
 	fmt.Println("\n=== Asset Discovery Demo ===")
 
-	// Create asset discovery service
+	// Get timeouts from configuration
+	arpTimeout, err := cfg.GetARPTimeout()
+	if err != nil {
+		log.Fatalf("Invalid ARP timeout in config: %v", err)
+	}
+
+	portTimeout, err := cfg.GetPortScanTimeout()
+	if err != nil {
+		log.Fatalf("Invalid port scan timeout in config: %v", err)
+	}
+
+	rateLimit, err := cfg.GetARPRateLimit()
+	if err != nil {
+		log.Fatalf("Invalid ARP rate limit in config: %v", err)
+	}
+
+	// Determine interface
+	interfaceName := cfg.Network.Interface
+	if interfaceName == "auto" {
+		interfaceName = "ens33" // fallback - you might want to implement auto-detection
+	}
+
+	// Create asset discovery service with configuration values
 	discovery, err := network.NewAssetDiscovery(
-		"eth0",              // Interface name
-		2*time.Second,       // ARP timeout
-		1*time.Second,       // Port scan timeout
-		50,                  // Number of workers
-		50*time.Millisecond, // Rate limit
+		interfaceName,
+		arpTimeout,
+		portTimeout,
+		cfg.ARP.Workers,
+		rateLimit,
 	)
 	if err != nil {
 		log.Fatalf("Failed to create asset discovery service: %v", err)
 	}
 	defer discovery.Close()
 
-	// Get local network for scanning
-	localCIDR, err := network.GetLocalNetworkCIDR()
-	if err != nil {
-		localCIDR = "172.26.52.43/28" // Fallback to a smaller range
+	// Discover assets from local network if enabled
+	if cfg.Network.ScanLocalNetwork {
+		var targetCIDR string
+		if cfg.Network.AutoDetectLocal {
+			localCIDR, err := network.GetLocalNetworkCIDR()
+			if err != nil {
+				fmt.Printf("Warning: Failed to auto-detect local network: %v\n", err)
+				targetCIDR = cfg.Network.DefaultCIDR
+			} else {
+				targetCIDR = localCIDR
+			}
+		} else {
+			targetCIDR = cfg.Network.DefaultCIDR
+		}
+
+		fmt.Printf("Discovering assets on %s (port scanning: %v)...\n", 
+			targetCIDR, cfg.PortScan.Enabled)
+		
+		assets, err := discovery.DiscoverAssets(targetCIDR, cfg.PortScan.Enabled)
+		if err != nil {
+			log.Fatalf("Asset discovery failed: %v", err)
+		}
+		printAssets(assets)
 	}
 
-	// Discover assets (with port scanning)
-	fmt.Printf("Discovering assets on %s (with port scanning)...\n", localCIDR)
-	assets, err := discovery.DiscoverAssets(localCIDR, true)
-	if err != nil {
-		log.Fatalf("Asset discovery failed: %v", err)
+	// Discover assets from file if enabled
+	if cfg.Network.ScanFileList {
+		fmt.Printf("\nDiscovering assets from %s...\n", cfg.Files.IPListFile)
+		fileAssets, err := discovery.DiscoverAssetsFromFile(cfg.Files.IPListFile, cfg.PortScan.Enabled)
+		if err != nil {
+			log.Printf("Warning: File-based asset discovery failed: %v", err)
+		} else {
+			printAssets(fileAssets)
+		}
 	}
 
-	printAssets(assets)
-
-	// Optionally test file-based discovery
-	fmt.Println("\nDiscovering assets from list.txt...")
-	fileAssets, err := discovery.DiscoverAssetsFromFile("list.txt", true)
-	if err != nil {
-		log.Printf("Warning: File-based asset discovery failed: %v", err)
-	} else {
-		printAssets(fileAssets)
+	// Save results to output file if configured
+	if cfg.Files.OutputFile != "" {
+		fmt.Printf("\nNote: Results can be saved to %s (not implemented in demo)\n", cfg.Files.OutputFile)
 	}
 }
 
