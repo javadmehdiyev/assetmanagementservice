@@ -147,3 +147,61 @@ nohup: ignoring input
 2025/05/28 22:52:38 After deduplication: 7 unique assets (reduced from 12)
 2025/05/28 22:52:38 📄 Results saved to: assets.json
 2025/05/28 22:52:38 ✅ Scan completed: 7 unique assets in 3m21.309709305s
+2025/05/28 22:54:16 📡 Starting asset discovery scan...
+2025/05/28 22:54:16 Scanning local network: 192.168.123.30/24
+2025/05/28 22:56:11 Local network: found 6 assets
+2025/05/28 22:56:11 Scanning file target: 192.168.123.0/24
+2025/05/28 22:57:43 File targets: found 6 assets
+2025/05/28 22:57:43 After deduplication: 6 unique assets (reduced from 12)
+2025/05/28 22:57:43 📄 Results saved to: assets.json
+2025/05/28 22:57:43 ✅ Scan completed: 6 unique assets in 3m27.226102229s
+2025/05/28 22:59:16 📡 Starting asset discovery scan...
+2025/05/28 22:59:16 Scanning local network: 192.168.123.30/24
+2025/05/28 23:00:49 Local network: found 6 assets
+2025/05/28 23:00:49 Scanning file target: 192.168.123.0/24
+2025/05/28 23:02:48 File targets: found 7 assets
+2025/05/28 23:02:48 After deduplication: 7 unique assets (reduced from 13)
+2025/05/28 23:02:48 📄 Results saved to: assets.json
+2025/05/28 23:02:48 ✅ Scan completed: 7 unique assets in 3m31.835260991s
+2025/05/28 23:04:16 📡 Starting asset discovery scan...
+2025/05/28 23:04:16 Scanning local network: 192.168.123.30/24
+2025/05/29 19:32:08 Local network: found 6 assets
+2025/05/29 19:32:08 Scanning file target: 192.168.123.0/24
+2025/05/29 19:33:45 File targets: found 9 assets
+2025/05/29 19:33:45 After deduplication: 10 unique assets (reduced from 15)
+2025/05/29 19:33:45 📄 Results saved to: assets.json
+2025/05/29 19:33:45 ✅ Scan completed: 10 unique assets in 3m27.197272688s
+2025/05/29 19:35:18 📡 Starting asset discovery scan...
+2025/05/29 19:35:18 Scanning local network: 192.168.123.30/24
+2025/05/29 19:36:58 Local network: found 7 assets
+2025/05/29 19:36:58 Scanning file target: 192.168.123.0/24
+2025/05/29 19:38:28 File targets: found 10 assets
+2025/05/29 19:38:28 After deduplication: 10 unique assets (reduced from 17)
+2025/05/29 19:38:28 📄 Results saved to: assets.json
+2025/05/29 19:38:28 ✅ Scan completed: 10 unique assets in 3m9.655364683s
+2025/05/29 19:40:18 📡 Starting asset discovery scan...
+2025/05/29 19:40:18 Scanning local network: 192.168.123.30/24
+2025/05/29 19:41:51 Local network: found 8 assets
+2025/05/29 19:41:51 Scanning file target: 192.168.123.0/24
+2025/05/29 19:43:50 File targets: found 9 assets
+2025/05/29 19:43:50 After deduplication: 9 unique assets (reduced from 17)
+2025/05/29 19:43:50 📄 Results saved to: assets.json
+2025/05/29 19:43:50 ✅ Scan completed: 9 unique assets in 3m31.726458388s
+2025/05/29 19:45:18 📡 Starting asset discovery scan...
+2025/05/29 19:45:18 Scanning local network: 192.168.123.30/24
+2025/05/29 19:47:04 Local network: found 9 assets
+2025/05/29 19:47:04 Scanning file target: 192.168.123.0/24
+2025/05/29 19:48:54 File targets: found 9 assets
+2025/05/29 19:48:54 After deduplication: 9 unique assets (reduced from 18)
+2025/05/29 19:48:54 📄 Results saved to: assets.json
+2025/05/29 19:48:54 ✅ Scan completed: 9 unique assets in 3m36.547330846s
+2025/05/29 19:50:18 📡 Starting asset discovery scan...
+2025/05/29 19:50:18 Scanning local network: 192.168.123.30/24
+2025/05/29 19:52:17 Local network: found 9 assets
+2025/05/29 19:52:17 Scanning file target: 192.168.123.0/24
+2025/05/29 19:53:51 File targets: found 7 assets
+2025/05/29 19:53:51 After deduplication: 9 unique assets (reduced from 16)
+2025/05/29 19:53:51 📄 Results saved to: assets.json
+2025/05/29 19:53:51 ✅ Scan completed: 9 unique assets in 3m32.793406468s
+2025/05/29 19:55:18 📡 Starting asset discovery scan...
+2025/05/29 19:55:18 Scanning local network: 192.168.123.30/24

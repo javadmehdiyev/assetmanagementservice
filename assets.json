@@ -1,10 +1,75 @@
 {
-  "timestamp": "2025-05-28 22:52:38",
-  "total_hosts": 7,
-  "scan_time": "3m21.309709305s",
+  "timestamp": "2025-05-29 19:54:21",
+  "total_hosts": 8,
+  "scan_time": "3m7.110678549s",
   "local_network": "192.168.123.30/24",
   "file_targets": 1,
   "assets": [
+    {
+      "ip": "192.168.123.14",
+      "mac": "00:27:11:00:40:69",
+      "vendor": "",
+      "open_ports": [
+        {
+          "ip": "192.168.123.14",
+          "port": 135,
+          "protocol": "tcp",
+          "state": "open",
+          "service": "RPC"
+        },
+        {
+          "ip": "192.168.123.14",
+          "port": 139,
+          "protocol": "tcp",
+          "state": "open",
+          "service": "NetBIOS"
+        },
+        {
+          "ip": "192.168.123.14",
+          "port": 445,
+          "protocol": "tcp",
+          "state": "open",
+          "service": "SMB"
+        }
+      ],
+      "last_seen": "2025-05-29T19:54:05.694659705Z",
+      "first_seen": "2025-05-29T19:52:32.070712372Z",
+      "hostname": "DESKTOP-MEMBCJL.bbrouter.",
+      "arp_response": true
+    },
+    {
+      "ip": "192.168.123.31",
+      "mac": "f6:49:7e:0c:13:d3",
+      "vendor": "",
+      "last_seen": "2025-05-29T19:54:05.697407443Z",
+      "first_seen": "2025-05-29T19:52:32.071023558Z",
+      "arp_response": true
+    },
+    {
+      "ip": "192.168.123.33",
+      "mac": "9e:44:0f:f5:9d:72",
+      "vendor": "",
+      "last_seen": "2025-05-29T19:54:05.697427725Z",
+      "first_seen": "2025-05-29T19:52:32.071058471Z",
+      "arp_response": true
+    },
+    {
+      "ip": "192.168.123.22",
+      "mac": "58:ea:1f:4b:da:7f",
+      "vendor": "",
+      "open_ports": [
+        {
+          "ip": "192.168.123.22",
+          "port": 53,
+          "protocol": "tcp",
+          "state": "open",
+          "service": "DNS"
+        }
+      ],
+      "last_seen": "2025-05-29T19:54:05.694670385Z",
+      "first_seen": "2025-05-29T19:52:32.070718578Z",
+      "arp_response": true
+    },
     {
       "ip": "192.168.123.10",
       "mac": "00:12:42:6c:9f:c7",
@@ -18,9 +83,26 @@
           "service": "HTTP"
         }
       ],
-      "last_seen": "2025-05-28T22:52:23.97695494Z",
-      "first_seen": "2025-05-28T22:50:33.524754394Z",
+      "last_seen": "2025-05-29T19:54:05.694614839Z",
+      "first_seen": "2025-05-29T19:52:32.070663585Z",
       "hostname": "LocalHost.bbrouter.",
+      "arp_response": true
+    },
+    {
+      "ip": "192.168.123.18",
+      "mac": "84:a4:66:f7:d4:16",
+      "vendor": "",
+      "open_ports": [
+        {
+          "ip": "192.168.123.18",
+          "port": 8080,
+          "protocol": "tcp",
+          "state": "open",
+          "service": "HTTP-Proxy"
+        }
+      ],
+      "last_seen": "2025-05-29T19:54:05.694665307Z",
+      "first_seen": "2025-05-29T19:52:32.070739078Z",
       "arp_response": true
     },
     {
@@ -51,41 +133,9 @@
           "service": "HTTP"
         }
       ],
-      "last_seen": "2025-05-28T22:52:23.976971577Z",
-      "first_seen": "2025-05-28T22:50:33.524771886Z",
+      "last_seen": "2025-05-29T19:54:05.694654789Z",
+      "first_seen": "2025-05-29T19:52:32.070706053Z",
       "hostname": "RTKGW.bbrouter.",
-      "arp_response": true
-    },
-    {
-      "ip": "192.168.123.14",
-      "mac": "00:27:11:00:40:69",
-      "vendor": "",
-      "open_ports": [
-        {
-          "ip": "192.168.123.14",
-          "port": 135,
-          "protocol": "tcp",
-          "state": "open",
-          "service": "RPC"
-        },
-        {
-          "ip": "192.168.123.14",
-          "port": 139,
-          "protocol": "tcp",
-          "state": "open",
-          "service": "NetBIOS"
-        },
-        {
-          "ip": "192.168.123.14",
-          "port": 445,
-          "protocol": "tcp",
-          "state": "open",
-          "service": "SMB"
-        }
-      ],
-      "last_seen": "2025-05-28T22:52:23.976974495Z",
-      "first_seen": "2025-05-28T22:50:33.524756896Z",
-      "hostname": "DESKTOP-MEMBCJL.bbrouter.",
       "arp_response": true
     },
     {
@@ -115,42 +165,9 @@
           "service": "SMB"
         }
       ],
-      "last_seen": "2025-05-28T22:52:23.976977887Z",
-      "first_seen": "2025-05-28T22:50:33.52477128Z",
+      "last_seen": "2025-05-29T19:54:05.697336346Z",
+      "first_seen": "2025-05-29T19:52:32.070743687Z",
       "hostname": "DESKTOP-MEMBCJL.bbrouter.",
-      "arp_response": true
-    },
-    {
-      "ip": "192.168.123.11",
-      "mac": "c2:20:08:10:9c:30",
-      "vendor": "",
-      "last_seen": "2025-05-28T22:50:33.524776504Z",
-      "first_seen": "2025-05-28T22:50:33.524776504Z",
-      "arp_response": true
-    },
-    {
-      "ip": "192.168.123.28",
-      "mac": "ce:2b:9e:7a:2e:2d",
-      "vendor": "",
-      "last_seen": "2025-05-28T22:52:23.976980108Z",
-      "first_seen": "2025-05-28T22:52:23.976980108Z",
-      "arp_response": true
-    },
-    {
-      "ip": "192.168.123.22",
-      "mac": "58:ea:1f:4b:da:7f",
-      "vendor": "",
-      "open_ports": [
-        {
-          "ip": "192.168.123.22",
-          "port": 53,
-          "protocol": "tcp",
-          "state": "open",
-          "service": "DNS"
-        }
-      ],
-      "last_seen": "2025-05-28T22:52:23.976975943Z",
-      "first_seen": "2025-05-28T22:50:33.524769269Z",
       "arp_response": true
     }
   ]
