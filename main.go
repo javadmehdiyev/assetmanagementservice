@@ -12,7 +12,6 @@ func main() {
 	fmt.Println("Asset Management Service")
 	fmt.Println("========================")
 	
-	// Check if config exists
 	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
 		fmt.Println("No config.json found, creating default...")
 		cfg := config.GetDefaultConfig()
@@ -20,14 +19,13 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to create config: %v", err)
 		}
-		fmt.Println("✅ Default config.json created")
+		fmt.Println("Default config.json created")
 	}
 
-	// Check if list.txt exists
 	if _, err := os.Stat("list.txt"); os.IsNotExist(err) {
 		fmt.Println("No list.txt found, creating sample...")
 		createSampleList()
-		fmt.Println("✅ Sample list.txt created")
+		fmt.Println("Sample list.txt created")
 	}
 
 	fmt.Println("\nChoose option:")
@@ -54,12 +52,10 @@ func main() {
 }
 
 func runDaemon() {
-	// This would start the daemon
 	fmt.Println("Run: go run asset-daemon.go")
 }
 
 func runTest() {
-	// This would run the test
 	fmt.Println("Run: go run test-daemon.go")
 }
 
@@ -79,14 +75,8 @@ func showConfig() {
 }
 
 func createSampleList() {
-	sample := `# Asset Management - IP Block List
-# Lines starting with # are comments
-
-# Local networks
-192.168.1.0/24
+	sample := `192.168.1.0/24
 10.0.0.0/24
-
-# Individual IPs  
 8.8.8.8
 1.1.1.1`
 	
