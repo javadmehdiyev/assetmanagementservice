@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +12,7 @@ import (
 
 	"assetmanager/pkg/config"
 	"assetmanager/pkg/network"
+	"assetmanager/utilities"
 )
 
 type AssetResult struct {
@@ -83,7 +85,12 @@ func createAssetDiscovery(cfg *config.Config) (*network.AssetDiscovery, error) {
 
 	interfaceName := cfg.Network.Interface
 	if interfaceName == "auto" {
-		interfaceName = "ens33"
+
+		ifAutoInterface, err := utilities.GetMainNetworkInterface()
+		if err != nil {
+			log.Fatalf("Failed to get main network interface: %v", err)
+		}
+		interfaceName = ifAutoInterface.Name
 	}
 
 	discovery, err := network.NewAssetDiscovery(
@@ -107,16 +114,25 @@ func performScan(cfg *config.Config, discovery *network.AssetDiscovery) {
 	var allAssets []network.Asset
 	localCIDR := getLocalNetwork(cfg)
 
+	// Scan local network using ARP
 	if cfg.Network.ScanLocalNetwork {
 		localAssets := scanLocalNetwork(cfg, discovery)
 		allAssets = append(allAssets, localAssets...)
 		log.Printf("Local network: found %d assets", len(localAssets))
 	}
 
+	// Scan file targets using ARP (excluding local network)
 	if cfg.Network.ScanFileList {
 		fileAssets := scanFileTargetsExcluding(cfg, discovery, localCIDR)
 		allAssets = append(allAssets, fileAssets...)
-		log.Printf("File targets: found %d assets", len(fileAssets))
+		log.Printf("File targets (ARP): found %d assets", len(fileAssets))
+	}
+
+	// Scan public assets using ping/TCP/UDP
+	if cfg.PublicScan.Enabled {
+		publicAssets := scanPublicAssets(cfg)
+		allAssets = append(allAssets, publicAssets...)
+		log.Printf("Public assets: found %d assets", len(publicAssets))
 	}
 
 	uniqueAssets := removeDuplicateAssets(allAssets)
@@ -144,7 +160,7 @@ func scanLocalNetwork(cfg *config.Config, discovery *network.AssetDiscovery) []n
 	}
 
 	log.Printf("Scanning local network: %s", localCIDR)
-	
+
 	assets, err := discovery.DiscoverAssets(localCIDR, cfg.PortScan.Enabled)
 	if err != nil {
 		log.Printf("Local network scan failed: %v", err)
@@ -167,7 +183,7 @@ func scanFileTargetsExcluding(cfg *config.Config, discovery *network.AssetDiscov
 			log.Printf("Skipping %s (already scanned as local network)", cidr)
 			continue
 		}
-		
+
 		log.Printf("Scanning file target: %s", cidr)
 		assets, err := discovery.DiscoverAssets(cidr, cfg.PortScan.Enabled)
 		if err != nil {
@@ -178,6 +194,85 @@ func scanFileTargetsExcluding(cfg *config.Config, discovery *network.AssetDiscov
 	}
 
 	return allAssets
+}
+
+// scanPublicAssets scans public IP addresses using ping, TCP, and UDP
+func scanPublicAssets(cfg *config.Config) []network.Asset {
+	// Read targets from file
+	targets, err := network.ReadTargetsFromFile(cfg.Files.IPListFile)
+	if err != nil {
+		log.Printf("Failed to read targets from file: %v", err)
+		return []network.Asset{}
+	}
+
+	if len(targets) == 0 {
+		log.Println("No public targets found in file")
+		return []network.Asset{}
+	}
+
+	localCIDR := getLocalNetwork(cfg)
+	filteredTargets := filterOutLocalIPs(targets, localCIDR)
+
+	if len(filteredTargets) == 0 {
+		log.Println("No public targets remaining after filtering local IPs")
+		return []network.Asset{}
+	}
+
+	log.Printf("Scanning %d public targets", len(filteredTargets))
+
+	timeout, err := cfg.GetPublicScanTimeout()
+	if err != nil {
+		log.Printf("Invalid public scan timeout, using default: %v", err)
+		timeout = 5 * time.Second
+	}
+
+	scanner := network.NewPublicAssetScanner(timeout, cfg.PublicScan.Workers, 2)
+	defer scanner.Close()
+
+	tcpPorts := cfg.PublicScan.TCPPorts
+	if len(tcpPorts) == 0 {
+		tcpPorts = network.GetCommonTCPPorts()
+	}
+
+	udpPorts := cfg.PublicScan.UDPPorts
+	if len(udpPorts) == 0 {
+		udpPorts = network.GetCommonUDPPorts()
+	}
+
+	publicAssets, err := scanner.ScanPublicAssets(filteredTargets, tcpPorts, udpPorts)
+	if err != nil {
+		log.Printf("Public scan failed: %v", err)
+		return []network.Asset{}
+	}
+
+	var assets []network.Asset
+	for _, publicAsset := range publicAssets {
+		assets = append(assets, publicAsset.ToAsset())
+	}
+
+	return assets
+}
+
+func filterOutLocalIPs(targets []string, localCIDR string) []string {
+	if localCIDR == "" {
+		return targets
+	}
+
+	_, localNet, err := net.ParseCIDR(localCIDR)
+	if err != nil {
+		log.Printf("Invalid local CIDR %s: %v", localCIDR, err)
+		return targets
+	}
+
+	var filtered []string
+	for _, target := range targets {
+		ip := net.ParseIP(target)
+		if ip != nil && !localNet.Contains(ip) {
+			filtered = append(filtered, target)
+		}
+	}
+
+	return filtered
 }
 
 func saveResult(result AssetResult, outputFile string) {
@@ -239,27 +334,27 @@ func removeDuplicateAssets(assets []network.Asset) []network.Asset {
 			if existing.MAC == "" && asset.MAC != "" {
 				existing.MAC = asset.MAC
 			}
-			
+
 			if existing.Vendor == "" && asset.Vendor != "" {
 				existing.Vendor = asset.Vendor
 			}
-			
+
 			if existing.Hostname == "" && asset.Hostname != "" {
 				existing.Hostname = asset.Hostname
 			}
-			
+
 			if len(asset.OpenPorts) > 0 {
 				existing.OpenPorts = mergePortResults(existing.OpenPorts, asset.OpenPorts)
 			}
-			
+
 			if asset.LastSeen.After(existing.LastSeen) {
 				existing.LastSeen = asset.LastSeen
 			}
-			
+
 			if asset.ARPResponse {
 				existing.ARPResponse = true
 			}
-			
+
 		} else {
 			newAsset := asset
 			assetMap[asset.IP] = &newAsset
@@ -276,19 +371,19 @@ func removeDuplicateAssets(assets []network.Asset) []network.Asset {
 
 func mergePortResults(existing, new []network.PortScanResult) []network.PortScanResult {
 	portMap := make(map[int]network.PortScanResult)
-	
+
 	for _, port := range existing {
 		portMap[port.Port] = port
 	}
-	
+
 	for _, port := range new {
 		portMap[port.Port] = port
 	}
-	
+
 	var merged []network.PortScanResult
 	for _, port := range portMap {
 		merged = append(merged, port)
 	}
-	
+
 	return merged
 }

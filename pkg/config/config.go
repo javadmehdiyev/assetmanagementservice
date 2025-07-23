@@ -9,11 +9,12 @@ import (
 )
 
 type Config struct {
-	Service  ServiceConfig  `json:"service"`
-	Network  NetworkConfig  `json:"network"`
-	ARP      ARPConfig      `json:"arp"`
-	PortScan PortScanConfig `json:"port_scan"`
-	Files    FileConfig     `json:"files"`
+	Service    ServiceConfig    `json:"service"`
+	Network    NetworkConfig    `json:"network"`
+	ARP        ARPConfig        `json:"arp"`
+	PortScan   PortScanConfig   `json:"port_scan"`
+	PublicScan PublicScanConfig `json:"public_scan"`
+	Files      FileConfig       `json:"files"`
 }
 
 type ServiceConfig struct {
@@ -42,6 +43,15 @@ type PortScanConfig struct {
 	Enabled bool   `json:"enabled"`
 	Timeout string `json:"timeout"`
 	Workers int    `json:"workers"`
+}
+
+type PublicScanConfig struct {
+	Enabled     bool   `json:"enabled"`
+	Timeout     string `json:"timeout"`
+	Workers     int    `json:"workers"`
+	TCPPorts    []int  `json:"tcp_ports"`
+	UDPPorts    []int  `json:"udp_ports"`
+	PingEnabled bool   `json:"ping_enabled"`
 }
 
 type FileConfig struct {
@@ -140,6 +150,13 @@ func (c *Config) GetPortScanTimeout() (time.Duration, error) {
 	return time.ParseDuration(c.PortScan.Timeout)
 }
 
+func (c *Config) GetPublicScanTimeout() (time.Duration, error) {
+	if c.PublicScan.Timeout == "" {
+		return 5 * time.Second, nil
+	}
+	return time.ParseDuration(c.PublicScan.Timeout)
+}
+
 func GetDefaultConfig() *Config {
 	return &Config{
 		Service: ServiceConfig{
@@ -165,6 +182,14 @@ func GetDefaultConfig() *Config {
 			Enabled: false,
 			Timeout: "2s",
 			Workers: 20,
+		},
+		PublicScan: PublicScanConfig{
+			Enabled:     true,
+			Timeout:     "5s",
+			Workers:     10,
+			TCPPorts:    []int{22, 23, 53, 80, 443, 993, 995, 3389, 5432, 3306},
+			UDPPorts:    []int{53, 123, 161, 514},
+			PingEnabled: true,
 		},
 		Files: FileConfig{
 			IPListFile: "list.txt",

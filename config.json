@@ -23,6 +23,14 @@
     "timeout": "2s",
     "workers": 20
   },
+  "public_scan": {
+    "enabled": true,
+    "timeout": "5s",
+    "workers": 10,
+    "tcp_ports": [22, 23, 53, 80, 443, 993, 995, 3389, 5432, 3306],
+    "udp_ports": [53, 123, 161, 514],
+    "ping_enabled": true
+  },
   "files": {
     "ip_list_file": "list.txt",
     "output_file": "assets.json"
