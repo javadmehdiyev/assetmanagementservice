@@ -33,6 +33,7 @@ func main() {
 		v1.GET("/", api.HandleHome)
 		v1.GET("/assets", api.GetAssets)
 		v1.GET("/getAssets", api.GetAssets) // Alternative endpoint name
+		v1.GET("/vulnerable", api.GetVulnerableAssets)
 	}
 
 	// Health check endpoint

@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/PuerkitoBio/goquery v1.10.3
-	github.com/chromedp/chromedp v0.14.0
+	github.com/chromedp/chromedp v0.14.1
 	github.com/gin-gonic/gin v1.10.1
 	github.com/jlaffaye/ftp v0.2.0
 	github.com/mdlayher/arp v0.0.0-20220512170110-6706a2966875

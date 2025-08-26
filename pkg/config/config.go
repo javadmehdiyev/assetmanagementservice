@@ -9,12 +9,14 @@ import (
 )
 
 type Config struct {
-	Service    ServiceConfig    `json:"service"`
-	Network    NetworkConfig    `json:"network"`
-	ARP        ARPConfig        `json:"arp"`
-	PortScan   PortScanConfig   `json:"port_scan"`
-	PublicScan PublicScanConfig `json:"public_scan"`
-	Files      FileConfig       `json:"files"`
+	Service         ServiceConfig         `json:"service"`
+	Network         NetworkConfig         `json:"network"`
+	ARP             ARPConfig             `json:"arp"`
+	PortScan        PortScanConfig        `json:"port_scan"`
+	PublicScan      PublicScanConfig      `json:"public_scan"`
+	CredentialCheck CredentialCheckConfig `json:"credential_check"`
+	Screenshot      ScreenshotConfig      `json:"screenshot"`
+	Files           FileConfig            `json:"files"`
 }
 
 type ServiceConfig struct {
@@ -52,6 +54,22 @@ type PublicScanConfig struct {
 	TCPPorts    []int  `json:"tcp_ports"`
 	UDPPorts    []int  `json:"udp_ports"`
 	PingEnabled bool   `json:"ping_enabled"`
+}
+
+type CredentialCheckConfig struct {
+	Enabled         bool     `json:"enabled"`
+	Timeout         string   `json:"timeout"`
+	Workers         int      `json:"workers"`
+	CredentialsFile string   `json:"credentials_file"`
+	TestServices    []string `json:"test_services"`
+}
+
+type ScreenshotConfig struct {
+	Enabled             bool   `json:"enabled"`
+	Timeout             string `json:"timeout"`
+	Workers             int    `json:"workers"`
+	OutputDir           string `json:"output_dir"`
+	CaptureHTTPServices bool   `json:"capture_http_services"`
 }
 
 type FileConfig struct {
@@ -157,6 +175,20 @@ func (c *Config) GetPublicScanTimeout() (time.Duration, error) {
 	return time.ParseDuration(c.PublicScan.Timeout)
 }
 
+func (c *Config) GetCredentialCheckTimeout() (time.Duration, error) {
+	if c.CredentialCheck.Timeout == "" {
+		return 5 * time.Second, nil
+	}
+	return time.ParseDuration(c.CredentialCheck.Timeout)
+}
+
+func (c *Config) GetScreenshotTimeout() (time.Duration, error) {
+	if c.Screenshot.Timeout == "" {
+		return 10 * time.Second, nil
+	}
+	return time.ParseDuration(c.Screenshot.Timeout)
+}
+
 func GetDefaultConfig() *Config {
 	return &Config{
 		Service: ServiceConfig{
@@ -190,6 +222,20 @@ func GetDefaultConfig() *Config {
 			TCPPorts:    []int{22, 23, 53, 80, 443, 993, 995, 3389, 5432, 3306},
 			UDPPorts:    []int{53, 123, 161, 514},
 			PingEnabled: true,
+		},
+		CredentialCheck: CredentialCheckConfig{
+			Enabled:         false,
+			Timeout:         "5s",
+			Workers:         3,
+			CredentialsFile: "static/default_credentials.txt",
+			TestServices:    []string{"ssh", "ftp", "http", "https"},
+		},
+		Screenshot: ScreenshotConfig{
+			Enabled:             false,
+			Timeout:             "10s",
+			Workers:             2,
+			OutputDir:           "static/screenshots",
+			CaptureHTTPServices: true,
 		},
 		Files: FileConfig{
 			IPListFile: "list.txt",

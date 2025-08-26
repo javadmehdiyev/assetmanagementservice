@@ -104,6 +104,49 @@ func createAssetDiscovery(cfg *config.Config) (*network.AssetDiscovery, error) {
 		return nil, err
 	}
 
+	// Setup credential checker if enabled
+	if cfg.CredentialCheck.Enabled {
+		credTimeout, err := cfg.GetCredentialCheckTimeout()
+		if err != nil {
+			log.Printf("Invalid credential check timeout, using default: %v", err)
+			credTimeout = 5 * time.Second
+		}
+
+		credChecker, err := network.NewCredentialChecker(
+			cfg.CredentialCheck.CredentialsFile,
+			cfg.CredentialCheck.Workers,
+			credTimeout,
+		)
+		if err != nil {
+			log.Printf("Failed to create credential checker: %v", err)
+		} else {
+			discovery.SetCredentialChecker(credChecker)
+			log.Printf("Credential checker enabled with %d workers", cfg.CredentialCheck.Workers)
+		}
+	}
+
+	// Setup screenshot capture if enabled
+	if cfg.Screenshot.Enabled {
+		screenshotTimeout, err := cfg.GetScreenshotTimeout()
+		if err != nil {
+			log.Printf("Invalid screenshot timeout, using default: %v", err)
+			screenshotTimeout = 10 * time.Second
+		}
+
+		// Create output directory if it doesn't exist
+		if err := os.MkdirAll(cfg.Screenshot.OutputDir, 0755); err != nil {
+			log.Printf("Failed to create screenshot directory: %v", err)
+		} else {
+			screenshotCapture := network.NewScreenshotCapture(
+				cfg.Screenshot.OutputDir,
+				screenshotTimeout,
+				cfg.Screenshot.Workers,
+			)
+			discovery.SetScreenshotCapture(screenshotCapture)
+			log.Printf("Screenshot capture enabled with %d workers, output: %s", cfg.Screenshot.Workers, cfg.Screenshot.OutputDir)
+		}
+	}
+
 	return discovery, nil
 }
 
@@ -161,7 +204,7 @@ func scanLocalNetwork(cfg *config.Config, discovery *network.AssetDiscovery) []n
 
 	log.Printf("Scanning local network: %s", localCIDR)
 
-	assets, err := discovery.DiscoverAssets(localCIDR, cfg.PortScan.Enabled)
+	assets, err := discovery.DiscoverAssets(localCIDR, cfg.PortScan.Enabled, cfg.CredentialCheck.Enabled, cfg.Screenshot.Enabled)
 	if err != nil {
 		log.Printf("Local network scan failed: %v", err)
 		return []network.Asset{}
@@ -185,7 +228,7 @@ func scanFileTargetsExcluding(cfg *config.Config, discovery *network.AssetDiscov
 		}
 
 		log.Printf("Scanning file target: %s", cidr)
-		assets, err := discovery.DiscoverAssets(cidr, cfg.PortScan.Enabled)
+		assets, err := discovery.DiscoverAssets(cidr, cfg.PortScan.Enabled, cfg.CredentialCheck.Enabled, cfg.Screenshot.Enabled)
 		if err != nil {
 			log.Printf("Error scanning CIDR %s: %v", cidr, err)
 			continue

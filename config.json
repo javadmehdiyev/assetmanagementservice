@@ -31,6 +31,20 @@
     "udp_ports": [53, 123, 161, 514],
     "ping_enabled": true
   },
+  "credential_check": {
+    "enabled": true,
+    "timeout": "5s",
+    "workers": 5,
+    "credentials_file": "static/default_credentials.txt",
+    "test_services": ["ssh", "ftp", "http", "https"]
+  },
+  "screenshot": {
+    "enabled": true,
+    "timeout": "10s",
+    "workers": 3,
+    "output_dir": "static/screenshots",
+    "capture_http_services": true
+  },
   "files": {
     "ip_list_file": "list.txt",
     "output_file": "assets.json"

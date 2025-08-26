@@ -9,14 +9,21 @@ import (
 
 // Asset represents a discovered network asset
 type Asset struct {
-	IP          string           `json:"ip"`
-	MAC         string           `json:"mac"`
-	Vendor      string           `json:"vendor"`
-	OpenPorts   []PortScanResult `json:"open_ports,omitempty"`
-	LastSeen    time.Time        `json:"last_seen"`
-	FirstSeen   time.Time        `json:"first_seen"`
-	Hostname    string           `json:"hostname,omitempty"`
-	ARPResponse bool             `json:"arp_response"`
+	IP                  string               `json:"ip"`
+	MAC                 string               `json:"mac"`
+	Vendor              string               `json:"vendor"`
+	Ports               []PortScanResult     `json:"ports,omitempty"`
+	OpenPorts           []PortScanResult     `json:"open_ports,omitempty"`
+	CredentialResults   []CredentialResult   `json:"credential_results,omitempty"`
+	ScreenshotResults   []ScreenshotResult   `json:"screenshot_results,omitempty"`
+	LastSeen            time.Time            `json:"last_seen"`
+	FirstSeen           time.Time            `json:"first_seen"`
+	Hostname            string               `json:"hostname,omitempty"`
+	ARPResponse         bool                 `json:"arp_response"`
+	HasDefaultCreds     bool                 `json:"has_default_creds"`
+	HasWebServices      bool                 `json:"has_web_services"`
+	VulnerableServices  []string             `json:"vulnerable_services,omitempty"`
+	WebServices         []string             `json:"web_services,omitempty"`
 }
 
 // AssetID returns a unique identifier for the asset
@@ -26,11 +33,13 @@ func (a *Asset) AssetID() string {
 
 // AssetDiscovery represents an asset discovery service
 type AssetDiscovery struct {
-	arpScanner   *ParallelARPScanner
-	portScanner  *PortScanner
-	assets       map[string]*Asset
-	mu           sync.RWMutex
-	scanInterval time.Duration
+	arpScanner        *ParallelARPScanner
+	portScanner       *PortScanner
+	credentialChecker *CredentialChecker
+	screenshotCapture *ScreenshotCapture
+	assets            map[string]*Asset
+	mu                sync.RWMutex
+	scanInterval      time.Duration
 }
 
 // NewAssetDiscovery creates a new asset discovery service
@@ -45,10 +54,11 @@ func NewAssetDiscovery(interfaceName string, arpTimeout, portTimeout time.Durati
 	portScanner := NewPortScanner(portTimeout, workers, 2)
 
 	return &AssetDiscovery{
-		arpScanner:   arpScanner,
-		portScanner:  portScanner,
-		assets:       make(map[string]*Asset),
-		scanInterval: 10 * time.Minute, // Default scan interval
+		arpScanner:        arpScanner,
+		portScanner:       portScanner,
+		credentialChecker: nil, // Will be set separately if enabled
+		assets:            make(map[string]*Asset),
+		scanInterval:      10 * time.Minute, // Default scan interval
 	}, nil
 }
 
@@ -57,13 +67,23 @@ func (d *AssetDiscovery) Close() error {
 	return d.arpScanner.Close()
 }
 
+// SetCredentialChecker sets the credential checker for this discovery service
+func (d *AssetDiscovery) SetCredentialChecker(checker *CredentialChecker) {
+	d.credentialChecker = checker
+}
+
+// SetScreenshotCapture sets the screenshot capture for this discovery service
+func (d *AssetDiscovery) SetScreenshotCapture(capture *ScreenshotCapture) {
+	d.screenshotCapture = capture
+}
+
 // SetScanInterval sets the interval between scans
 func (d *AssetDiscovery) SetScanInterval(interval time.Duration) {
 	d.scanInterval = interval
 }
 
 // DiscoverAssets discovers assets on the network
-func (d *AssetDiscovery) DiscoverAssets(cidr string, scanPorts bool) ([]Asset, error) {
+func (d *AssetDiscovery) DiscoverAssets(cidr string, scanPorts bool, testCredentials bool, captureScreenshots bool) ([]Asset, error) {
 	// Step 1: Perform ARP scan to discover devices
 	arpResults, err := d.arpScanner.ScanNetworkParallel(cidr)
 	if err != nil {
@@ -96,12 +116,46 @@ func (d *AssetDiscovery) DiscoverAssets(cidr string, scanPorts bool) ([]Asset, e
 				// Scan common ports
 				portResults, err := d.portScanner.ScanHost(r.IP)
 				if err == nil {
-					// Filter for open ports only
+					// Filter for open ports only and add all ports to asset
 					for _, port := range portResults {
+						asset.Ports = append(asset.Ports, port)
 						if port.State == PortOpen {
 							asset.OpenPorts = append(asset.OpenPorts, port)
 						}
 					}
+				}
+			}
+
+			// Step 4: Test credentials if enabled and we have open ports
+			if testCredentials && d.credentialChecker != nil && len(asset.OpenPorts) > 0 {
+				credResults := d.credentialChecker.testAssetCredentials(asset)
+				asset.CredentialResults = credResults
+				
+				// Check if any credentials were successful
+				for _, result := range credResults {
+					if result.Successful {
+						asset.HasDefaultCreds = true
+						asset.VulnerableServices = append(asset.VulnerableServices, result.Service)
+					}
+				}
+			}
+
+			// Step 5: Capture screenshots if enabled and we have HTTP services
+			if captureScreenshots && d.screenshotCapture != nil && len(asset.OpenPorts) > 0 {
+				// Check for HTTP services
+				hasHTTP := false
+				for _, port := range asset.OpenPorts {
+					if d.screenshotCapture.isHTTPService(port.Port) {
+						hasHTTP = true
+						asset.WebServices = append(asset.WebServices, fmt.Sprintf("%s:%d", r.IP, port.Port))
+					}
+				}
+				
+				if hasHTTP {
+					asset.HasWebServices = true
+					// Capture screenshots for this single asset
+					screenshots := d.screenshotCapture.CaptureScreenshots([]Asset{asset})
+					asset.ScreenshotResults = screenshots
 				}
 			}
 
@@ -132,7 +186,7 @@ func (d *AssetDiscovery) DiscoverAssets(cidr string, scanPorts bool) ([]Asset, e
 }
 
 // DiscoverAssetsFromFile discovers assets from a file containing CIDR ranges
-func (d *AssetDiscovery) DiscoverAssetsFromFile(filePath string, scanPorts bool) ([]Asset, error) {
+func (d *AssetDiscovery) DiscoverAssetsFromFile(filePath string, scanPorts bool, testCredentials bool, captureScreenshots bool) ([]Asset, error) {
 	// Read CIDR ranges from file
 	cidrs, err := ReadCIDRsFromFile(filePath)
 	if err != nil {
@@ -141,7 +195,7 @@ func (d *AssetDiscovery) DiscoverAssetsFromFile(filePath string, scanPorts bool)
 
 	var allAssets []Asset
 	for _, cidr := range cidrs {
-		assets, err := d.DiscoverAssets(cidr, scanPorts)
+		assets, err := d.DiscoverAssets(cidr, scanPorts, testCredentials, captureScreenshots)
 		if err != nil {
 			fmt.Printf("Error scanning CIDR %s: %v\n", cidr, err)
 			continue

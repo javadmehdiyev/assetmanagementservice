@@ -37,6 +37,7 @@ func HandleHome(c *gin.Context) {
 		"version": "1.0.0",
 		"endpoints": []string{
 			"GET /assets - Get all discovered assets",
+			"GET /vulnerable - Get assets with vulnerable credentials",
 		},
 	})
 }
@@ -95,6 +96,74 @@ func GetAssets(c *gin.Context) {
 		Success:     true,
 		Message:     message,
 		Data:        &assetResult,
+		AssetsCount: assetsCount,
+		HasAssets:   hasAssets,
+		Timestamp:   time.Now().Format("2006-01-02 15:04:05"),
+	})
+}
+
+// GetVulnerableAssets handles the /vulnerable endpoint - returns only assets with successful credential tests
+func GetVulnerableAssets(c *gin.Context) {
+	// Read the assets.json file
+	data, err := os.ReadFile("assets.json")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, GetAssetsResponse{
+			Success:     false,
+			Message:     "Failed to read assets file: " + err.Error(),
+			AssetsCount: 0,
+			HasAssets:   false,
+			Timestamp:   time.Now().Format("2006-01-02 15:04:05"),
+		})
+		return
+	}
+
+	// Parse the JSON data
+	var assetResult AssetResult
+	if err := json.Unmarshal(data, &assetResult); err != nil {
+		c.JSON(http.StatusInternalServerError, GetAssetsResponse{
+			Success:     false,
+			Message:     "Failed to parse assets data: " + err.Error(),
+			AssetsCount: 0,
+			HasAssets:   false,
+			Timestamp:   time.Now().Format("2006-01-02 15:04:05"),
+		})
+		return
+	}
+
+	// Filter vulnerable assets (assets with successful credential tests)
+	var vulnerableAssets []network.Asset
+	if assetResult.Assets != nil {
+		for _, asset := range assetResult.Assets {
+			if asset.HasDefaultCreds {
+				vulnerableAssets = append(vulnerableAssets, asset)
+			}
+		}
+	}
+
+	// Create modified result with only vulnerable assets
+	vulnerableResult := AssetResult{
+		Timestamp:   assetResult.Timestamp,
+		TotalHosts:  len(vulnerableAssets),
+		ScanTime:    assetResult.ScanTime,
+		LocalNet:    assetResult.LocalNet,
+		FileTargets: assetResult.FileTargets,
+		Assets:      vulnerableAssets,
+	}
+
+	assetsCount := len(vulnerableAssets)
+	hasAssets := assetsCount > 0
+
+	var message string
+	if !hasAssets {
+		message = "No vulnerable assets found with default credentials."
+	} else {
+		message = fmt.Sprintf("Found %d assets with vulnerable default credentials.", assetsCount)
+	}
+
+	c.JSON(http.StatusOK, GetAssetsResponse{
+		Success:     true,
+		Message:     message,
+		Data:        &vulnerableResult,
 		AssetsCount: assetsCount,
 		HasAssets:   hasAssets,
 		Timestamp:   time.Now().Format("2006-01-02 15:04:05"),
