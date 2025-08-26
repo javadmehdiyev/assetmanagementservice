@@ -3,6 +3,7 @@ package utilities
 import (
 	"bufio"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -16,9 +17,11 @@ type NetworkInterface struct {
 }
 
 func GetMainNetworkInterface() (*NetworkInterface, error) {
+	// Linux-specific implementation using /proc/net/dev
 	file, err := os.Open("/proc/net/dev")
 	if err != nil {
-		return nil, fmt.Errorf("failed to open /proc/net/dev: %v", err)
+		// Fallback to cross-platform approach
+		return getMainNetworkInterfaceFallback()
 	}
 	defer file.Close()
 
@@ -64,6 +67,53 @@ func GetMainNetworkInterface() (*NetworkInterface, error) {
 	}
 
 	return mainInterface, nil
+}
+
+func getMainNetworkInterfaceFallback() (*NetworkInterface, error) {
+	// Cross-platform approach using Go's net package
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get network interfaces: %v", err)
+	}
+
+	var bestInterface *net.Interface
+	for _, iface := range interfaces {
+		// Skip loopback and down interfaces
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+
+		// Get addresses for this interface
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		// Look for non-loopback IPv4 address
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok {
+				if ipNet.IP.To4() != nil && !ipNet.IP.IsLoopback() {
+					bestInterface = &iface
+					break
+				}
+			}
+		}
+		
+		if bestInterface != nil {
+			break
+		}
+	}
+
+	if bestInterface == nil {
+		return nil, fmt.Errorf("no suitable network interface found")
+	}
+
+	return &NetworkInterface{
+		Name:         bestInterface.Name,
+		RxPackets:    0, // Stats not easily available cross-platform
+		TxPackets:    0,
+		TotalPackets: 0,
+	}, nil
 }
 
 func parseInterfaceLine(line string) (*NetworkInterface, error) {

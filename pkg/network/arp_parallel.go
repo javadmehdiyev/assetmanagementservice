@@ -72,7 +72,7 @@ func (s *ParallelARPScanner) ScanNetworkParallel(cidr string) ([]ARPResult, erro
 				}
 
 				// Perform the scan
-				result, err := s.scanIPWithRetry(client, ip, 2) // 2 retries
+				result, err := s.scanIPWithRetry(client, ip, 3) // 3 retries for better coverage
 				if err == nil && result != nil {
 					resultChan <- *result
 				}

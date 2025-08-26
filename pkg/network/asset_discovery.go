@@ -3,6 +3,7 @@ package network
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"sync"
 	"time"
 )
@@ -92,6 +93,29 @@ func (d *AssetDiscovery) DiscoverAssets(cidr string, scanPorts bool, testCredent
 	}
 
 	fmt.Printf("Found %d devices via ARP scan\n", len(arpResults))
+
+	// Step 1.5: Supplement with ping scan to find missed devices
+	pingAssets, _ := d.discoverWithPingScan(cidr, false, false, false) // Quick ping scan without extras
+	
+	// Merge ARP and ping results
+	discoveredIPs := make(map[string]bool)
+	for _, arp := range arpResults {
+		discoveredIPs[arp.IP] = true
+	}
+	
+	// Add IPs found by ping but not by ARP
+	for _, pingAsset := range pingAssets {
+		if !discoveredIPs[pingAsset.IP] {
+			// Convert ping result to ARP result format
+			arpResults = append(arpResults, ARPResult{
+				IP:     pingAsset.IP,
+				MAC:    "", // No MAC from ping
+				Vendor: "",
+			})
+		}
+	}
+	
+	fmt.Printf("After ping scan supplement: found %d total devices\n", len(arpResults))
 
 	var assets []Asset
 	var wg sync.WaitGroup
@@ -290,8 +314,20 @@ func (d *AssetDiscovery) discoverWithPingScan(cidr string, scanPorts bool, testC
 	return assets, nil
 }
 
+// pingHost performs ICMP ping to check if host is alive
+func (d *AssetDiscovery) pingHost(ip string) bool {
+	cmd := exec.Command("ping", "-c", "1", "-W", "1000", ip)
+	err := cmd.Run()
+	return err == nil
+}
+
 // isHostAlive checks if a host is alive by testing common ports
 func (d *AssetDiscovery) isHostAlive(ip string) bool {
+	// First try ICMP ping for faster detection
+	if d.pingHost(ip) {
+		return true
+	}
+	
 	// More comprehensive port list like Goby uses
 	commonPorts := []int{
 		// Basic services

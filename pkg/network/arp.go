@@ -60,11 +60,24 @@ func (s *ARPScanner) ScanIP(ip string) (*ARPResult, error) {
 
 	netIP, err := netip.ParseAddr(ip)
 	if err != nil {
-		fmt.Errorf(err.Error())
+		return nil, fmt.Errorf("invalid IP address: %w", err)
 	}
-	mac, err := s.client.Resolve(netIP)
+
+	// Retry mechanism for ARP requests
+	var mac net.HardwareAddr
+	maxRetries := 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		mac, err = s.client.Resolve(netIP)
+		if err == nil {
+			break
+		}
+		if attempt < maxRetries-1 {
+			time.Sleep(time.Duration(50+attempt*25) * time.Millisecond)
+		}
+	}
+	
 	if err != nil {
-		return nil, fmt.Errorf("ARP request failed: %w", err)
+		return nil, fmt.Errorf("ARP request failed after %d attempts: %w", maxRetries, err)
 	}
 
 	result := &ARPResult{

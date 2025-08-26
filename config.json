@@ -1,6 +1,10 @@
 {
-  "service": {
-    "name": "Asset Management Service",
+  "service":  "arp": {
+    "enabled": true,
+    "timeout": "3s",
+    "workers": 30,
+    "rate_limit": "5ms"
+  }, "name": "Asset Management Service",
     "run_as_daemon": true,
     "scan_interval": "5m",
     "auto_start": true
@@ -14,14 +18,14 @@
   },
   "arp": {
     "enabled": true,
-    "timeout": "1s",
-    "workers": 10,
-    "rate_limit": "50ms"
+    "timeout": "3s",
+    "workers": 30,
+    "rate_limit": "5ms"
   },
   "port_scan": {
     "enabled": true,
-    "timeout": "2s",
-    "workers": 20
+    "timeout": "1s",
+    "workers": 50
   },
   "public_scan": {
     "enabled": true,
