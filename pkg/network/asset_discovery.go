@@ -91,8 +91,12 @@ func (d *AssetDiscovery) DiscoverAssets(cidr string, scanPorts bool, testCredent
 	// Step 1: Perform ARP scan to discover devices
 	arpResults, err := d.arpScanner.ScanNetworkParallel(cidr)
 	if err != nil {
-		return nil, fmt.Errorf("ARP scan failed: %w", err)
+		// If ARP scan fails, try a simple ping scan instead
+		fmt.Printf("ARP scan failed, trying ping scan: %v\n", err)
+		return d.discoverWithPingScan(cidr, scanPorts, testCredentials, captureScreenshots)
 	}
+
+	fmt.Printf("Found %d devices via ARP scan\n", len(arpResults))
 
 	var assets []Asset
 	var wg sync.WaitGroup
@@ -285,4 +289,235 @@ func lookupHostname(ip string) (string, error) {
 		return hostnames[0], nil
 	}
 	return "", fmt.Errorf("no hostname found for IP %s", ip)
+}
+
+// discoverWithPingScan performs discovery using ping scan as fallback
+func (d *AssetDiscovery) discoverWithPingScan(cidr string, scanPorts bool, testCredentials bool, captureScreenshots bool) ([]Asset, error) {
+	ips, err := parseNetworkCIDR(cidr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CIDR: %w", err)
+	}
+
+	var assets []Asset
+	var wg sync.WaitGroup
+	assetChan := make(chan Asset, len(ips))
+
+	// Limit concurrent pings to avoid overwhelming the system
+	semaphore := make(chan struct{}, 50)
+
+	for _, ip := range ips {
+		wg.Add(1)
+		go func(targetIP string) {
+			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			// Simple port check instead of ping (more reliable)
+			if d.isHostAlive(targetIP) {
+				asset := Asset{
+					IP:          targetIP,
+					ARPResponse: false, // Since we didn't use ARP
+					FirstSeen:   time.Now(),
+					LastSeen:    time.Now(),
+				}
+
+				// Try to get hostname
+				if hostname, err := lookupHostname(targetIP); err == nil {
+					asset.Hostname = hostname
+				}
+
+				// Perform port scan if requested
+				if scanPorts {
+					asset.OpenPorts = d.portScanner.ScanCommonPorts(targetIP)
+					asset.Ports = asset.OpenPorts // For backward compatibility
+					
+					// Simple OS detection based on open ports
+					asset.DeviceInfo = d.detectOSFromPorts(asset)
+				}
+
+				// Test credentials if requested and we have services that support it
+				if testCredentials && d.credentialChecker != nil && len(asset.OpenPorts) > 0 {
+					credResults := d.credentialChecker.TestCredentials([]Asset{asset})
+					if len(credResults) > 0 {
+						asset.CredentialResults = credResults
+						asset.HasDefaultCreds = true
+					}
+				}
+
+				// Capture screenshots if requested and we have web services
+				if captureScreenshots && d.screenshotCapture != nil {
+					webPorts := d.findWebServices(asset.OpenPorts)
+					if len(webPorts) > 0 {
+						asset.WebServices = webPorts
+						asset.HasWebServices = true
+						screenshots := d.screenshotCapture.CaptureScreenshots([]Asset{asset})
+						asset.ScreenshotResults = screenshots
+					}
+				}
+
+				assetChan <- asset
+			}
+		}(ip)
+	}
+
+	go func() {
+		wg.Wait()
+		close(assetChan)
+	}()
+
+	for asset := range assetChan {
+		assets = append(assets, asset)
+	}
+
+	fmt.Printf("Ping scan completed, found %d assets\n", len(assets))
+	return assets, nil
+}
+
+// isHostAlive checks if a host is alive by testing common ports
+func (d *AssetDiscovery) isHostAlive(ip string) bool {
+	// Test common ports to see if host is alive
+	commonPorts := []int{22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 993, 995, 1723, 3389, 5900, 8080}
+	
+	for _, port := range commonPorts {
+		if d.portScanner.IsPortOpen(ip, port) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectOSFromPorts detects OS based on open ports (simple but effective)
+func (d *AssetDiscovery) detectOSFromPorts(asset Asset) *DeviceInfo {
+	deviceInfo := &DeviceInfo{
+		IP:       asset.IP,
+		Hostname: asset.Hostname,
+		Services: make(map[string]string),
+	}
+
+	hasNetBIOS := false
+	hasSSH := false
+	hasRDP := false
+	hasApplePorts := false
+
+	for _, port := range asset.OpenPorts {
+		portNum := port.Port
+		
+		// Add service information
+		switch portNum {
+		case 22:
+			deviceInfo.Services["ssh"] = "present"
+			hasSSH = true
+		case 23:
+			deviceInfo.Services["telnet"] = "present"
+		case 25:
+			deviceInfo.Services["smtp"] = "present"
+		case 53:
+			deviceInfo.Services["dns"] = "present"
+		case 80:
+			deviceInfo.Services["http"] = "present"
+		case 110:
+			deviceInfo.Services["pop3"] = "present"
+		case 135:
+			deviceInfo.Services["rpc"] = "present"
+			hasNetBIOS = true
+		case 139, 445:
+			deviceInfo.Services["smb"] = "present"
+			hasNetBIOS = true
+		case 443:
+			deviceInfo.Services["https"] = "present"
+		case 3389:
+			deviceInfo.Services["rdp"] = "present"
+			hasRDP = true
+		case 5353:
+			deviceInfo.Services["mdns"] = "present"
+			hasApplePorts = true
+		case 62078:
+			deviceInfo.Services["airplay"] = "present"
+			hasApplePorts = true
+		case 5900:
+			deviceInfo.Services["vnc"] = "present"
+		case 21:
+			deviceInfo.Services["ftp"] = "present"
+		case 6379:
+			deviceInfo.Services["redis"] = "present"
+		}
+	}
+
+	// Simple OS detection logic
+	if hasNetBIOS || hasRDP {
+		deviceInfo.OSFamily = "Windows"
+		deviceInfo.DeviceType = "computer"
+		if hasRDP {
+			deviceInfo.OSVersion = "Windows (RDP enabled)"
+		}
+	} else if hasApplePorts {
+		deviceInfo.OSFamily = "macOS/iOS"
+		deviceInfo.DeviceType = "apple_device"
+		deviceInfo.Manufacturer = "Apple"
+	} else if hasSSH && !hasNetBIOS {
+		deviceInfo.OSFamily = "Linux/Unix"
+		deviceInfo.DeviceType = "server"
+	}
+
+	// Get manufacturer from MAC if available
+	if asset.MAC != "" {
+		manufacturer := d.getManufacturerFromMACAPI(asset.MAC)
+		if manufacturer != "" {
+			deviceInfo.Manufacturer = manufacturer
+		}
+	}
+
+	return deviceInfo
+}
+
+// findWebServices identifies web service ports
+func (d *AssetDiscovery) findWebServices(ports []PortScanResult) []string {
+	var webServices []string
+	for _, port := range ports {
+		if port.Port == 80 || port.Port == 443 || port.Port == 8080 || port.Port == 8443 || port.Port == 8000 || port.Port == 3000 {
+			protocol := "http"
+			if port.Port == 443 || port.Port == 8443 {
+				protocol = "https"
+			}
+			webServices = append(webServices, fmt.Sprintf("%s://%s:%d", protocol, "", port.Port))
+		}
+	}
+	return webServices
+}
+
+// parseNetworkCIDR parses CIDR and returns list of IPs to scan
+func parseNetworkCIDR(cidr string) ([]string, error) {
+	_, network, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, err
+	}
+
+	var ips []string
+	for ip := network.IP.Mask(network.Mask); network.Contains(ip); incrementIPAddr(ip) {
+		ips = append(ips, ip.String())
+	}
+	
+	// Remove network and broadcast addresses
+	if len(ips) > 2 {
+		return ips[1 : len(ips)-1], nil
+	}
+	return ips, nil
+}
+
+// incrementIPAddr increments an IP address
+func incrementIPAddr(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+}
+
+// getManufacturerFromMACAPI gets manufacturer info from MAC address using external API
+func (d *AssetDiscovery) getManufacturerFromMACAPI(mac string) string {
+	if d.hostnameDetector != nil {
+		return d.hostnameDetector.getManufacturerFromMAC(mac)
+	}
+	return ""
 }

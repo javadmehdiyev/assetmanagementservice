@@ -8,7 +8,7 @@
   "network": {
     "interface": "auto",
     "auto_detect_local": true,
-    "default_cidr": "192.168.123.0/24",
+    "default_cidr": "192.168.1.0/24",
     "scan_local_network": true,
     "scan_file_list": true
   },

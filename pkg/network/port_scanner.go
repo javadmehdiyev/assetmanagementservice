@@ -349,3 +349,61 @@ func lookupService(port int, protocol ScanType) string {
 
 	return "unknown"
 }
+
+// IsPortOpen checks if a specific port is open on a host
+func (ps *PortScanner) IsPortOpen(host string, port int) bool {
+	address := fmt.Sprintf("%s:%d", host, port)
+	conn, err := net.DialTimeout("tcp", address, ps.timeout)
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	return true
+}
+
+// ScanCommonPorts scans common ports on a host and returns only open ports
+func (ps *PortScanner) ScanCommonPorts(host string) []PortScanResult {
+	commonPorts := []int{
+		21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 993, 995, 
+		1723, 3389, 5900, 8080, 8443, 5353, 62078, 6379, 3306, 5432, 1521,
+		8000, 3000, 9000, 8888, 9999, 8181, 8282, 9090, 7001, 7002,
+	}
+
+	var results []PortScanResult
+	var wg sync.WaitGroup
+	resultsChan := make(chan PortScanResult, len(commonPorts))
+	
+	// Limit concurrency to avoid overwhelming the target
+	semaphore := make(chan struct{}, 20)
+
+	for _, port := range commonPorts {
+		wg.Add(1)
+		go func(p int) {
+			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			if ps.IsPortOpen(host, p) {
+				result := PortScanResult{
+					IP:       host,
+					Port:     p,
+					Protocol: ScanTCP,
+					State:    PortOpen,
+					Service:  lookupService(p, ScanTCP),
+				}
+				resultsChan <- result
+			}
+		}(port)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	for result := range resultsChan {
+		results = append(results, result)
+	}
+
+	return results
+}
