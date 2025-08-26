@@ -135,7 +135,8 @@ func GetVulnerableAssets(c *gin.Context) {
 	var vulnerableAssets []network.Asset
 	if assetResult.Assets != nil {
 		for _, asset := range assetResult.Assets {
-			if asset.HasDefaultCreds {
+			// Check if asset has successful credential results
+			if len(asset.CredentialResults) > 0 {
 				vulnerableAssets = append(vulnerableAssets, asset)
 			}
 		}

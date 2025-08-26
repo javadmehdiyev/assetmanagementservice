@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,21 +151,26 @@ func (sc *ScreenshotCapture) takeScreenshot(url, host string, port int) (bool, s
 	ctx, cancel := context.WithTimeout(context.Background(), sc.timeout)
 	defer cancel()
 	
-	// Setup Chrome options
+	// Setup Chrome options with error suppression
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", sc.headless),
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.Flag("disable-extensions", true),
 		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("disable-web-security", true),
+		chromedp.Flag("ignore-certificate-errors", true),
+		chromedp.Flag("ignore-ssl-errors", true),
+		chromedp.Flag("disable-logging", true),
+		chromedp.Flag("silent", true),
 		chromedp.WindowSize(sc.windowWidth, sc.windowHeight),
 	)
 	
 	allocCtx, cancel2 := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancel2()
 	
-	// Create Chrome context
-	chromeCtx, cancel3 := chromedp.NewContext(allocCtx)
+	// Create Chrome context with log suppression
+	chromeCtx, cancel3 := chromedp.NewContext(allocCtx, chromedp.WithLogf(func(string, ...interface{}) {}))
 	defer cancel3()
 	
 	// Generate filename
@@ -172,16 +178,36 @@ func (sc *ScreenshotCapture) takeScreenshot(url, host string, port int) (bool, s
 	filename := fmt.Sprintf("%s_%d_%s.png", host, port, timestamp)
 	filePath := filepath.Join(sc.outputDir, filename)
 	
-	// Capture screenshot
+	// Capture screenshot with error handling
 	var buf []byte
 	err := chromedp.Run(chromeCtx,
-		chromedp.Navigate(url),
-		chromedp.Sleep(3*time.Second), // Wait for page to load
-		chromedp.CaptureScreenshot(&buf),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			// Navigate with timeout
+			navCtx, navCancel := context.WithTimeout(ctx, 10*time.Second)
+			defer navCancel()
+			return chromedp.Navigate(url).Do(navCtx)
+		}),
+		chromedp.Sleep(2*time.Second), // Reduced wait time
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			// Capture screenshot with timeout
+			capCtx, capCancel := context.WithTimeout(ctx, 5*time.Second)
+			defer capCancel()
+			return chromedp.CaptureScreenshot(&buf).Do(capCtx)
+		}),
 	)
 	
 	if err != nil {
-		return false, "", 0, err.Error()
+		// Log specific errors, suppress IPAddressSpace errors
+		if !contains(err.Error(), "IPAddressSpace") && 
+		   !contains(err.Error(), "net::ERR_SSL_PROTOCOL_ERROR") {
+			return false, "", 0, err.Error()
+		}
+		// Continue with screenshot capture despite network errors
+	}
+	
+	// Check if we got a screenshot
+	if len(buf) == 0 {
+		return false, "", 0, "failed to capture screenshot - empty buffer"
 	}
 	
 	// Save screenshot
@@ -218,4 +244,9 @@ func (sc *ScreenshotCapture) CaptureScreenshotSingle(url string) ScreenshotResul
 	result.ErrorMsg = errMsg
 	
 	return result
+}
+
+// Helper function using strings.Contains
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }
