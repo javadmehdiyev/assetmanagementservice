@@ -2,7 +2,6 @@ package network
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"log"
 	"net"

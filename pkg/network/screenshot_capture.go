@@ -67,9 +67,9 @@ func (sc *ScreenshotCapture) CaptureScreenshots(assets []Asset) []ScreenshotResu
 				mu.Unlock()
 				
 				if result.Success {
-					log.Printf("Worker %d: Screenshot captured for %s - %s", workerID, job.URL, result.FilePath)
+					log.Printf("Worker %d: Screenshot captured for %s - %s", workerID, result.URL, result.FilePath)
 				} else {
-					log.Printf("Worker %d: Screenshot failed for %s - %s", workerID, job.URL, result.ErrorMsg)
+					log.Printf("Worker %d: Screenshot failed for %s - %s", workerID, result.URL, result.ErrorMsg)
 				}
 			}
 		}(i)
