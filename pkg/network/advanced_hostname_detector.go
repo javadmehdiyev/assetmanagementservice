@@ -131,7 +131,11 @@ func (ahd *AdvancedHostnameDetector) DetectDeviceInfo(asset Asset) DeviceInfo {
 
 // enhancedDNSLookup performs enhanced DNS lookup with PTR and additional records
 func (ahd *AdvancedHostnameDetector) enhancedDNSLookup(ip string) DeviceInfo {
-	info := DeviceInfo{IP: ip, DetectionMethods: []string{"dns"}}
+	info := DeviceInfo{
+		IP:               ip,
+		DetectionMethods: []string{"dns"},
+		Services:         make(map[string]string),
+	}
 
 	// Standard reverse DNS lookup
 	hostnames, err := net.LookupAddr(ip)
@@ -166,7 +170,11 @@ func (ahd *AdvancedHostnameDetector) enhancedDNSLookup(ip string) DeviceInfo {
 
 // detectAppleDevices detects Apple devices using mDNS patterns
 func (ahd *AdvancedHostnameDetector) detectAppleDevices(ip string) DeviceInfo {
-	info := DeviceInfo{IP: ip, DetectionMethods: []string{"mdns"}}
+	info := DeviceInfo{
+		IP:               ip,
+		DetectionMethods: []string{"mdns"},
+		Services:         make(map[string]string),
+	}
 
 	// Try to connect to common Apple service ports
 	applePorts := []int{5353, 62078, 49152, 49153, 49154}
@@ -193,7 +201,11 @@ func (ahd *AdvancedHostnameDetector) detectAppleDevices(ip string) DeviceInfo {
 
 // detectWindowsDevices detects Windows devices using NetBIOS
 func (ahd *AdvancedHostnameDetector) detectWindowsDevices(ip string) DeviceInfo {
-	info := DeviceInfo{IP: ip, DetectionMethods: []string{"netbios"}}
+	info := DeviceInfo{
+		IP:               ip,
+		DetectionMethods: []string{"netbios"},
+		Services:         make(map[string]string),
+	}
 
 	// Check for NetBIOS ports (137, 139, 445)
 	netbiosPorts := []int{137, 139, 445}
@@ -216,7 +228,11 @@ func (ahd *AdvancedHostnameDetector) detectWindowsDevices(ip string) DeviceInfo 
 
 // detectSNMPInfo detects device info using SNMP
 func (ahd *AdvancedHostnameDetector) detectSNMPInfo(ip string) DeviceInfo {
-	info := DeviceInfo{IP: ip, DetectionMethods: []string{"snmp"}}
+	info := DeviceInfo{
+		IP:               ip,
+		DetectionMethods: []string{"snmp"},
+		Services:         make(map[string]string),
+	}
 
 	if ahd.isPortOpen(ip, 161) {
 		info.Services["snmp"] = "present"
@@ -229,7 +245,11 @@ func (ahd *AdvancedHostnameDetector) detectSNMPInfo(ip string) DeviceInfo {
 
 // analyzeHTTPBanners analyzes HTTP server banners for OS/device information
 func (ahd *AdvancedHostnameDetector) analyzeHTTPBanners(asset Asset) DeviceInfo {
-	info := DeviceInfo{IP: asset.IP, DetectionMethods: []string{"http_banner"}}
+	info := DeviceInfo{
+		IP:               asset.IP,
+		DetectionMethods: []string{"http_banner"},
+		Services:         make(map[string]string),
+	}
 
 	for _, port := range asset.OpenPorts {
 		if port.Port == 80 || port.Port == 443 || port.Port == 8080 || port.Port == 8443 {
@@ -276,7 +296,11 @@ func (ahd *AdvancedHostnameDetector) analyzeHTTPBanners(asset Asset) DeviceInfo 
 
 // analyzeSSHBanners analyzes SSH banners for OS information
 func (ahd *AdvancedHostnameDetector) analyzeSSHBanners(asset Asset) DeviceInfo {
-	info := DeviceInfo{IP: asset.IP, DetectionMethods: []string{"ssh_banner"}}
+	info := DeviceInfo{
+		IP:               asset.IP,
+		DetectionMethods: []string{"ssh_banner"},
+		Services:         make(map[string]string),
+	}
 
 	for _, port := range asset.OpenPorts {
 		if port.Port == 22 {
