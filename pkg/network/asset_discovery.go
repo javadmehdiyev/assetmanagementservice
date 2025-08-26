@@ -16,6 +16,7 @@ type Asset struct {
 	OpenPorts           []PortScanResult     `json:"open_ports,omitempty"`
 	CredentialResults   []CredentialResult   `json:"credential_results,omitempty"`
 	ScreenshotResults   []ScreenshotResult   `json:"screenshot_results,omitempty"`
+	DeviceInfo          *DeviceInfo          `json:"device_info,omitempty"`
 	LastSeen            time.Time            `json:"last_seen"`
 	FirstSeen           time.Time            `json:"first_seen"`
 	Hostname            string               `json:"hostname,omitempty"`
@@ -37,6 +38,7 @@ type AssetDiscovery struct {
 	portScanner       *PortScanner
 	credentialChecker *CredentialChecker
 	screenshotCapture *ScreenshotCapture
+	hostnameDetector  *AdvancedHostnameDetector
 	assets            map[string]*Asset
 	mu                sync.RWMutex
 	scanInterval      time.Duration
@@ -57,6 +59,8 @@ func NewAssetDiscovery(interfaceName string, arpTimeout, portTimeout time.Durati
 		arpScanner:        arpScanner,
 		portScanner:       portScanner,
 		credentialChecker: nil, // Will be set separately if enabled
+		screenshotCapture: nil, // Will be set separately if enabled
+		hostnameDetector:  NewAdvancedHostnameDetector(5 * time.Second),
 		assets:            make(map[string]*Asset),
 		scanInterval:      10 * time.Minute, // Default scan interval
 	}, nil
@@ -159,9 +163,22 @@ func (d *AssetDiscovery) DiscoverAssets(cidr string, scanPorts bool, testCredent
 				}
 			}
 
-			// Try to resolve hostname
-			if hostname, err := lookupHostname(r.IP); err == nil {
-				asset.Hostname = hostname
+			// Step 6: Advanced hostname and OS detection
+			if d.hostnameDetector != nil {
+				deviceInfo := d.hostnameDetector.DetectDeviceInfo(asset)
+				asset.DeviceInfo = &deviceInfo
+				
+				// Update basic fields from advanced detection
+				if asset.Hostname == "" && deviceInfo.Hostname != "" {
+					asset.Hostname = deviceInfo.Hostname
+				}
+			}
+
+			// Fallback: Try basic hostname lookup if advanced detection didn't find one
+			if asset.Hostname == "" {
+				if hostname, err := lookupHostname(r.IP); err == nil {
+					asset.Hostname = hostname
+				}
 			}
 
 			assetChan <- asset

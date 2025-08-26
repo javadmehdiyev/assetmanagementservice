@@ -36,7 +36,7 @@
     "timeout": "5s",
     "workers": 5,
     "credentials_file": "static/default_credentials.txt",
-    "test_services": ["ssh", "ftp", "http", "https"]
+    "test_services": ["ssh", "ftp", "http", "https", "redis", "rdp"]
   },
   "screenshot": {
     "enabled": true,

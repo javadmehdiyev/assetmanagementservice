@@ -228,7 +228,7 @@ func GetDefaultConfig() *Config {
 			Timeout:         "5s",
 			Workers:         3,
 			CredentialsFile: "static/default_credentials.txt",
-			TestServices:    []string{"ssh", "ftp", "http", "https"},
+			TestServices:    []string{"ssh", "ftp", "http", "https", "redis", "rdp"},
 		},
 		Screenshot: ScreenshotConfig{
 			Enabled:             false,

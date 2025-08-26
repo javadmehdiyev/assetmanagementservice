@@ -62,11 +62,12 @@ func (sc *ScreenshotCapture) CaptureScreenshots(assets []Asset) []ScreenshotResu
 			defer wg.Done()
 			for job := range jobs {
 				result := sc.captureScreenshot(job)
-				mu.Lock()
-				results = append(results, result)
-				mu.Unlock()
 				
+				// Only save successful screenshots to avoid bloating the output
 				if result.Success {
+					mu.Lock()
+					results = append(results, result)
+					mu.Unlock()
 					log.Printf("Worker %d: Screenshot captured for %s - %s", workerID, result.URL, result.FilePath)
 				} else {
 					log.Printf("Worker %d: Screenshot failed for %s - %s", workerID, result.URL, result.ErrorMsg)
