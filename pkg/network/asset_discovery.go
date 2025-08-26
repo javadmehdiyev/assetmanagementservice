@@ -7,24 +7,19 @@ import (
 	"time"
 )
 
-// Asset represents a discovered network asset
+// Asset represents a discovered network asset (optimized)
 type Asset struct {
-	IP                  string               `json:"ip"`
-	MAC                 string               `json:"mac"`
-	Vendor              string               `json:"vendor"`
-	Ports               []PortScanResult     `json:"ports,omitempty"`
-	OpenPorts           []PortScanResult     `json:"open_ports,omitempty"`
-	CredentialResults   []CredentialResult   `json:"credential_results,omitempty"`
-	ScreenshotResults   []ScreenshotResult   `json:"screenshot_results,omitempty"`
-	DeviceInfo          *DeviceInfo          `json:"device_info,omitempty"`
-	LastSeen            time.Time            `json:"last_seen"`
-	FirstSeen           time.Time            `json:"first_seen"`
-	Hostname            string               `json:"hostname,omitempty"`
-	ARPResponse         bool                 `json:"arp_response"`
-	HasDefaultCreds     bool                 `json:"has_default_creds"`
-	HasWebServices      bool                 `json:"has_web_services"`
-	VulnerableServices  []string             `json:"vulnerable_services,omitempty"`
-	WebServices         []string             `json:"web_services,omitempty"`
+	IP                string             `json:"ip"`
+	MAC               string             `json:"mac,omitempty"`
+	Vendor            string             `json:"vendor,omitempty"`
+	Hostname          string             `json:"hostname,omitempty"`
+	OpenPorts         []PortScanResult   `json:"open_ports,omitempty"`
+	OS                string             `json:"os,omitempty"`
+	DeviceType        string             `json:"device_type,omitempty"`
+	CredentialResults []CredentialResult `json:"credentials,omitempty"`
+	Screenshots       []string           `json:"screenshots,omitempty"`
+	LastSeen          time.Time          `json:"last_seen"`
+	ARPResponse       bool               `json:"arp_response"`
 }
 
 // AssetID returns a unique identifier for the asset
@@ -102,181 +97,97 @@ func (d *AssetDiscovery) DiscoverAssets(cidr string, scanPorts bool, testCredent
 	var wg sync.WaitGroup
 	assetChan := make(chan Asset, len(arpResults))
 
-	// Step 2: Process discovered devices
+	// Step 2: Process discovered devices in parallel
 	for _, result := range arpResults {
 		wg.Add(1)
-
 		go func(r ARPResult) {
 			defer wg.Done()
 
-			now := time.Now()
 			asset := Asset{
 				IP:          r.IP,
 				MAC:         r.MAC,
 				Vendor:      r.Vendor,
-				LastSeen:    now,
-				FirstSeen:   now,
+				LastSeen:    time.Now(),
 				ARPResponse: true,
+			}
+
+			// Try to get hostname
+			if hostname, err := lookupHostname(r.IP); err == nil {
+				asset.Hostname = hostname
 			}
 
 			// Step 3: Optionally scan ports
 			if scanPorts {
-				// Scan common ports
-				portResults, err := d.portScanner.ScanHost(r.IP)
-				if err == nil {
-					// Filter for open ports only and add all ports to asset
-					for _, port := range portResults {
-						asset.Ports = append(asset.Ports, port)
-						if port.State == PortOpen {
-							asset.OpenPorts = append(asset.OpenPorts, port)
-						}
+				asset.OpenPorts = d.portScanner.ScanCommonPorts(r.IP)
+				
+				// Simple OS detection based on open ports
+				osInfo := d.detectOSFromPorts(asset)
+				if osInfo != nil {
+					asset.OS = osInfo.OSFamily
+					asset.DeviceType = osInfo.DeviceType
+					if osInfo.Manufacturer != "" {
+						asset.Vendor = osInfo.Manufacturer
 					}
 				}
 			}
 
 			// Step 4: Test credentials if enabled and we have open ports
 			if testCredentials && d.credentialChecker != nil && len(asset.OpenPorts) > 0 {
-				credResults := d.credentialChecker.testAssetCredentials(asset)
-				asset.CredentialResults = credResults
-				
-				// Check if any credentials were successful
-				for _, result := range credResults {
-					if result.Successful {
-						asset.HasDefaultCreds = true
-						asset.VulnerableServices = append(asset.VulnerableServices, result.Service)
-					}
+				credResults := d.credentialChecker.TestCredentials([]Asset{asset})
+				if len(credResults) > 0 {
+					asset.CredentialResults = credResults
 				}
 			}
 
 			// Step 5: Capture screenshots if enabled and we have HTTP services
-			if captureScreenshots && d.screenshotCapture != nil && len(asset.OpenPorts) > 0 {
-				// Check for HTTP services
-				hasHTTP := false
-				for _, port := range asset.OpenPorts {
-					if d.screenshotCapture.isHTTPService(port.Port) {
-						hasHTTP = true
-						asset.WebServices = append(asset.WebServices, fmt.Sprintf("%s:%d", r.IP, port.Port))
-					}
-				}
-				
-				if hasHTTP {
-					asset.HasWebServices = true
-					// Capture screenshots for this single asset
+			if captureScreenshots && d.screenshotCapture != nil {
+				webPorts := d.findWebServices(asset.OpenPorts)
+				if len(webPorts) > 0 {
 					screenshots := d.screenshotCapture.CaptureScreenshots([]Asset{asset})
-					asset.ScreenshotResults = screenshots
-				}
-			}
-
-			// Step 6: Advanced hostname and OS detection
-			if d.hostnameDetector != nil {
-				deviceInfo := d.hostnameDetector.DetectDeviceInfo(asset)
-				asset.DeviceInfo = &deviceInfo
-				
-				// Update basic fields from advanced detection
-				if asset.Hostname == "" && deviceInfo.Hostname != "" {
-					asset.Hostname = deviceInfo.Hostname
-				}
-			}
-
-			// Fallback: Try basic hostname lookup if advanced detection didn't find one
-			if asset.Hostname == "" {
-				if hostname, err := lookupHostname(r.IP); err == nil {
-					asset.Hostname = hostname
+					var screenshotFiles []string
+					for _, screenshot := range screenshots {
+						if screenshot.Success {
+							screenshotFiles = append(screenshotFiles, screenshot.FilePath)
+						}
+					}
+					asset.Screenshots = screenshotFiles
 				}
 			}
 
 			assetChan <- asset
-
-			// Update asset database
-			d.updateAsset(&asset)
 		}(result)
 	}
 
-	// Wait for all asset processing to complete
 	go func() {
 		wg.Wait()
 		close(assetChan)
 	}()
 
-	// Collect assets
 	for asset := range assetChan {
 		assets = append(assets, asset)
 	}
 
+	fmt.Printf("Asset discovery completed, found %d assets\n", len(assets))
 	return assets, nil
-}
-
-// DiscoverAssetsFromFile discovers assets from a file containing CIDR ranges
-func (d *AssetDiscovery) DiscoverAssetsFromFile(filePath string, scanPorts bool, testCredentials bool, captureScreenshots bool) ([]Asset, error) {
-	// Read CIDR ranges from file
-	cidrs, err := ReadCIDRsFromFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CIDR file: %w", err)
-	}
-
-	var allAssets []Asset
-	for _, cidr := range cidrs {
-		assets, err := d.DiscoverAssets(cidr, scanPorts, testCredentials, captureScreenshots)
-		if err != nil {
-			fmt.Printf("Error scanning CIDR %s: %v\n", cidr, err)
-			continue
-		}
-		allAssets = append(allAssets, assets...)
-	}
-
-	return allAssets, nil
-}
-
-// updateAsset updates the asset database
-func (d *AssetDiscovery) updateAsset(asset *Asset) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	// Check if asset already exists
-	if existing, ok := d.assets[asset.IP]; ok {
-		// Update existing asset
-		existing.LastSeen = asset.LastSeen
-		existing.MAC = asset.MAC
-		existing.Vendor = asset.Vendor
-		existing.ARPResponse = true
-
-		// Only update hostname if it was found
-		if asset.Hostname != "" {
-			existing.Hostname = asset.Hostname
-		}
-
-		// Update ports if scan was performed
-		if len(asset.OpenPorts) > 0 {
-			existing.OpenPorts = asset.OpenPorts
-		}
-	} else {
-		// Add new asset
-		d.assets[asset.IP] = asset
-	}
 }
 
 // GetAssets returns all discovered assets
 func (d *AssetDiscovery) GetAssets() []Asset {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-
-	var assets []Asset
+	
+	assets := make([]Asset, 0, len(d.assets))
 	for _, asset := range d.assets {
 		assets = append(assets, *asset)
 	}
 	return assets
 }
 
-// GetAssetByIP returns an asset by IP address
-func (d *AssetDiscovery) GetAssetByIP(ip string) (*Asset, bool) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	asset, ok := d.assets[ip]
-	if !ok {
-		return nil, false
-	}
-	return asset, true
+// updateAsset updates an asset in the database
+func (d *AssetDiscovery) updateAsset(asset *Asset) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.assets[asset.IP] = asset
 }
 
 // lookupHostname tries to resolve an IP address to a hostname
@@ -317,7 +228,6 @@ func (d *AssetDiscovery) discoverWithPingScan(cidr string, scanPorts bool, testC
 				asset := Asset{
 					IP:          targetIP,
 					ARPResponse: false, // Since we didn't use ARP
-					FirstSeen:   time.Now(),
 					LastSeen:    time.Now(),
 				}
 
@@ -329,10 +239,14 @@ func (d *AssetDiscovery) discoverWithPingScan(cidr string, scanPorts bool, testC
 				// Perform port scan if requested
 				if scanPorts {
 					asset.OpenPorts = d.portScanner.ScanCommonPorts(targetIP)
-					asset.Ports = asset.OpenPorts // For backward compatibility
 					
 					// Simple OS detection based on open ports
-					asset.DeviceInfo = d.detectOSFromPorts(asset)
+					osInfo := d.detectOSFromPorts(asset)
+					if osInfo != nil {
+						asset.OS = osInfo.OSFamily
+						asset.DeviceType = osInfo.DeviceType
+						asset.Vendor = osInfo.Manufacturer
+					}
 				}
 
 				// Test credentials if requested and we have services that support it
@@ -340,7 +254,6 @@ func (d *AssetDiscovery) discoverWithPingScan(cidr string, scanPorts bool, testC
 					credResults := d.credentialChecker.TestCredentials([]Asset{asset})
 					if len(credResults) > 0 {
 						asset.CredentialResults = credResults
-						asset.HasDefaultCreds = true
 					}
 				}
 
@@ -348,10 +261,14 @@ func (d *AssetDiscovery) discoverWithPingScan(cidr string, scanPorts bool, testC
 				if captureScreenshots && d.screenshotCapture != nil {
 					webPorts := d.findWebServices(asset.OpenPorts)
 					if len(webPorts) > 0 {
-						asset.WebServices = webPorts
-						asset.HasWebServices = true
 						screenshots := d.screenshotCapture.CaptureScreenshots([]Asset{asset})
-						asset.ScreenshotResults = screenshots
+						var screenshotFiles []string
+						for _, screenshot := range screenshots {
+							if screenshot.Success {
+								screenshotFiles = append(screenshotFiles, screenshot.FilePath)
+							}
+						}
+						asset.Screenshots = screenshotFiles
 					}
 				}
 
@@ -375,14 +292,57 @@ func (d *AssetDiscovery) discoverWithPingScan(cidr string, scanPorts bool, testC
 
 // isHostAlive checks if a host is alive by testing common ports
 func (d *AssetDiscovery) isHostAlive(ip string) bool {
-	// Test common ports to see if host is alive
-	commonPorts := []int{22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 993, 995, 1723, 3389, 5900, 8080}
+	// More comprehensive port list like Goby uses
+	commonPorts := []int{
+		// Basic services
+		21, 22, 23, 25, 53, 80, 110, 143, 443, 993, 995,
+		// Windows specific
+		135, 139, 445, 3389, 1433, 1521, 5985, 5986,
+		// Network devices
+		161, 162, 514, 623, 631, 8080, 8443,
+		// Databases & Apps
+		3306, 5432, 6379, 27017, 9200, 11211,
+		// Remote access
+		5900, 5901, 1723, 4899,
+		// Apple/macOS
+		5353, 62078, 88, 548, 626,
+		// Other common
+		8000, 8888, 9090, 7001, 10000, 2222, 2323,
+	}
+	
+	// Test ports in parallel for speed
+	portChan := make(chan bool, len(commonPorts))
+	var wg sync.WaitGroup
+	
+	// Limit concurrent connections to avoid overwhelming
+	semaphore := make(chan struct{}, 10)
 	
 	for _, port := range commonPorts {
-		if d.portScanner.IsPortOpen(ip, port) {
-			return true
-		}
+		wg.Add(1)
+		go func(p int) {
+			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			
+			if d.portScanner.IsPortOpen(ip, p) {
+				select {
+				case portChan <- true:
+				default:
+				}
+			}
+		}(port)
 	}
+	
+	go func() {
+		wg.Wait()
+		close(portChan)
+	}()
+	
+	// Return true if any port is open
+	for range portChan {
+		return true
+	}
+	
 	return false
 }
 

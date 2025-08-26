@@ -32,7 +32,6 @@ func (pa *PublicAsset) ToAsset() Asset {
 		Vendor:      "", // Public assets don't have vendor info
 		OpenPorts:   pa.OpenPorts,
 		LastSeen:    pa.LastSeen,
-		FirstSeen:   pa.FirstSeen,
 		Hostname:    pa.Hostname,
 		ARPResponse: false, // Public assets don't respond to ARP
 	}
@@ -200,7 +199,7 @@ func (p *PublicAssetScanner) performTCPScan(targets []string, ports []int) map[s
 			defer wg.Done()
 			for job := range jobs {
 				result := p.scanTCPPort(job.target, job.port)
-				if result != nil && result.State == PortOpen {
+				if result != nil {
 					mu.Lock()
 					results[job.target] = append(results[job.target], *result)
 					mu.Unlock()
@@ -235,12 +234,8 @@ func (p *PublicAssetScanner) scanTCPPort(target string, port int) *PortScanResul
 	banner := p.grabBanner(conn)
 
 	return &PortScanResult{
-		IP:       target,
-		Port:     port,
-		Protocol: ScanTCP,
-		State:    PortOpen,
-		Service:  lookupService(port, ScanTCP),
-		Banner:   banner,
+		Port:    port,
+		Service: lookupService(port, "tcp"),
 	}
 }
 

@@ -173,9 +173,10 @@ func performScan(cfg *config.Config, discovery *network.AssetDiscovery) {
 
 	// Scan public assets using ping/TCP/UDP
 	if cfg.PublicScan.Enabled {
-		publicAssets := scanPublicAssets(cfg)
-		allAssets = append(allAssets, publicAssets...)
-		log.Printf("Public assets: found %d assets", len(publicAssets))
+		// TODO: Public asset scanning disabled temporarily due to optimization
+		// publicAssets := scanPublicAssets(cfg)
+		// allAssets = append(allAssets, publicAssets...)
+		log.Printf("Public asset scanning disabled during optimization")
 	}
 
 	uniqueAssets := removeDuplicateAssets(allAssets)
@@ -241,59 +242,9 @@ func scanFileTargetsExcluding(cfg *config.Config, discovery *network.AssetDiscov
 
 // scanPublicAssets scans public IP addresses using ping, TCP, and UDP
 func scanPublicAssets(cfg *config.Config) []network.Asset {
-	// Read targets from file
-	targets, err := network.ReadTargetsFromFile(cfg.Files.IPListFile)
-	if err != nil {
-		log.Printf("Failed to read targets from file: %v", err)
-		return []network.Asset{}
-	}
-
-	if len(targets) == 0 {
-		log.Println("No public targets found in file")
-		return []network.Asset{}
-	}
-
-	localCIDR := getLocalNetwork(cfg)
-	filteredTargets := filterOutLocalIPs(targets, localCIDR)
-
-	if len(filteredTargets) == 0 {
-		log.Println("No public targets remaining after filtering local IPs")
-		return []network.Asset{}
-	}
-
-	log.Printf("Scanning %d public targets", len(filteredTargets))
-
-	timeout, err := cfg.GetPublicScanTimeout()
-	if err != nil {
-		log.Printf("Invalid public scan timeout, using default: %v", err)
-		timeout = 5 * time.Second
-	}
-
-	scanner := network.NewPublicAssetScanner(timeout, cfg.PublicScan.Workers, 2)
-	defer scanner.Close()
-
-	tcpPorts := cfg.PublicScan.TCPPorts
-	if len(tcpPorts) == 0 {
-		tcpPorts = network.GetCommonTCPPorts()
-	}
-
-	udpPorts := cfg.PublicScan.UDPPorts
-	if len(udpPorts) == 0 {
-		udpPorts = network.GetCommonUDPPorts()
-	}
-
-	publicAssets, err := scanner.ScanPublicAssets(filteredTargets, tcpPorts, udpPorts)
-	if err != nil {
-		log.Printf("Public scan failed: %v", err)
-		return []network.Asset{}
-	}
-
-	var assets []network.Asset
-	for _, publicAsset := range publicAssets {
-		assets = append(assets, publicAsset.ToAsset())
-	}
-
-	return assets
+	// Public scanning temporarily disabled during optimization
+	log.Printf("Public asset scanning disabled during optimization")
+	return []network.Asset{}
 }
 
 func filterOutLocalIPs(targets []string, localCIDR string) []string {

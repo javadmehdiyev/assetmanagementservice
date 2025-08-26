@@ -3,7 +3,6 @@ package network
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -24,14 +23,10 @@ type CredentialPair struct {
 
 // CredentialResult represents the result of a credential test
 type CredentialResult struct {
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	Service     string `json:"service"`
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	Successful  bool   `json:"successful"`
-	TestTime    string `json:"test_time"`
-	ErrorMsg    string `json:"error_msg,omitempty"`
+	Service  string `json:"service"`
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // CredentialChecker handles default credential testing
@@ -106,9 +101,11 @@ func (cc *CredentialChecker) TestCredentials(assets []Asset) []CredentialResult 
 			defer wg.Done()
 			for asset := range jobs {
 				assetResults := cc.testAssetCredentials(asset)
-				mu.Lock()
-				results = append(results, assetResults...)
-				mu.Unlock()
+				if len(assetResults) > 0 {
+					mu.Lock()
+					results = append(results, assetResults...)
+					mu.Unlock()
+				}
 			}
 		}()
 	}
@@ -130,25 +127,18 @@ func (cc *CredentialChecker) testAssetCredentials(asset Asset) []CredentialResul
 	var results []CredentialResult
 	
 	// Test each open port that supports authentication
-	for _, port := range asset.Ports {
-		if port.State != "open" {
-			continue
-		}
-		
+	for _, port := range asset.OpenPorts {
 		service := cc.identifyService(port.Port)
 		if service == "" {
 			continue
 		}
 		
-		log.Printf("Testing %s credentials for %s:%d (%s)", service, asset.IP, port.Port, service)
-		
 		for _, cred := range cc.credentials {
 			result := cc.testSingleCredential(asset.IP, port.Port, service, cred)
 			
-			// Only save successful results to avoid bloating the output
-			if result.Successful {
-				results = append(results, result)
-				log.Printf("SUCCESS: %s:%d - %s/%s", asset.IP, port.Port, cred.Username, cred.Password)
+			// Only save successful results
+			if result != nil {
+				results = append(results, *result)
 			}
 		}
 	}
@@ -187,32 +177,35 @@ func (cc *CredentialChecker) identifyService(port int) string {
 }
 
 // testSingleCredential tests a single credential combination
-func (cc *CredentialChecker) testSingleCredential(host string, port int, service string, cred CredentialPair) CredentialResult {
-	result := CredentialResult{
-		Host:     host,
-		Port:     port,
-		Service:  service,
-		Username: cred.Username,
-		Password: cred.Password,
-		TestTime: time.Now().Format("2006-01-02 15:04:05"),
-	}
+func (cc *CredentialChecker) testSingleCredential(host string, port int, service string, cred CredentialPair) *CredentialResult {
+	var success bool
 	
 	switch service {
 	case "ssh":
-		result.Successful, result.ErrorMsg = cc.testSSH(host, port, cred)
+		success, _ = cc.testSSH(host, port, cred)
 	case "ftp":
-		result.Successful, result.ErrorMsg = cc.testFTP(host, port, cred)
+		success, _ = cc.testFTP(host, port, cred)
 	case "http", "https":
-		result.Successful, result.ErrorMsg = cc.testHTTP(host, port, service, cred)
+		success, _ = cc.testHTTP(host, port, service, cred)
 	case "redis":
-		result.Successful, result.ErrorMsg = cc.testRedis(host, port, cred)
+		success, _ = cc.testRedis(host, port, cred)
 	case "rdp":
-		result.Successful, result.ErrorMsg = cc.testRDP(host, port, cred)
+		success, _ = cc.testRDP(host, port, cred)
 	default:
-		result.ErrorMsg = "unsupported service"
+		return nil
 	}
 	
-	return result
+	// Only return result if credentials worked
+	if success {
+		return &CredentialResult{
+			Service:  service,
+			Port:     port,
+			Username: cred.Username,
+			Password: cred.Password,
+		}
+	}
+	
+	return nil
 }
 
 // testSSH tests SSH credentials
