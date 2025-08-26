@@ -16,15 +16,14 @@ import (
 
 // DeviceInfo represents detailed device information
 type DeviceInfo struct {
-	IP              string            `json:"ip"`
-	Hostname        string            `json:"hostname"`
-	OSFamily        string            `json:"os_family"`
-	OSVersion       string            `json:"os_version"`
-	DeviceType      string            `json:"device_type"`
-	Manufacturer    string            `json:"manufacturer"`
-	Model           string            `json:"model"`
-	Services        map[string]string `json:"services"`
-	DetectionMethods []string         `json:"detection_methods"`
+	IP           string            `json:"ip"`
+	Hostname     string            `json:"hostname"`
+	OSFamily     string            `json:"os_family"`
+	OSVersion    string            `json:"os_version"`
+	DeviceType   string            `json:"device_type"`
+	Manufacturer string            `json:"manufacturer"`
+	Model        string            `json:"model"`
+	Services     map[string]string `json:"services"`
 }
 
 // AdvancedHostnameDetector handles advanced hostname and OS detection
@@ -47,10 +46,9 @@ func NewAdvancedHostnameDetector(timeout time.Duration) *AdvancedHostnameDetecto
 // DetectDeviceInfo performs comprehensive device detection
 func (ahd *AdvancedHostnameDetector) DetectDeviceInfo(asset Asset) DeviceInfo {
 	deviceInfo := DeviceInfo{
-		IP:               asset.IP,
-		Hostname:         asset.Hostname,
-		Services:         make(map[string]string),
-		DetectionMethods: []string{},
+		IP:       asset.IP,
+		Hostname: asset.Hostname,
+		Services: make(map[string]string),
 	}
 
 	var wg sync.WaitGroup
@@ -132,9 +130,8 @@ func (ahd *AdvancedHostnameDetector) DetectDeviceInfo(asset Asset) DeviceInfo {
 // enhancedDNSLookup performs enhanced DNS lookup with PTR and additional records
 func (ahd *AdvancedHostnameDetector) enhancedDNSLookup(ip string) DeviceInfo {
 	info := DeviceInfo{
-		IP:               ip,
-		DetectionMethods: []string{"dns"},
-		Services:         make(map[string]string),
+		IP:       ip,
+		Services: make(map[string]string),
 	}
 
 	// Standard reverse DNS lookup
@@ -171,9 +168,8 @@ func (ahd *AdvancedHostnameDetector) enhancedDNSLookup(ip string) DeviceInfo {
 // detectAppleDevices detects Apple devices using mDNS patterns
 func (ahd *AdvancedHostnameDetector) detectAppleDevices(ip string) DeviceInfo {
 	info := DeviceInfo{
-		IP:               ip,
-		DetectionMethods: []string{"mdns"},
-		Services:         make(map[string]string),
+		IP:       ip,
+		Services: make(map[string]string),
 	}
 
 	// Try to connect to common Apple service ports
@@ -183,7 +179,6 @@ func (ahd *AdvancedHostnameDetector) detectAppleDevices(ip string) DeviceInfo {
 		if ahd.isPortOpen(ip, port) {
 			// This might be an Apple device
 			info.Manufacturer = "Apple"
-			info.DetectionMethods = append(info.DetectionMethods, fmt.Sprintf("apple_port_%d", port))
 			
 			// Try to get more info from Bonjour/AirPlay services
 			if port == 5353 {
@@ -202,9 +197,8 @@ func (ahd *AdvancedHostnameDetector) detectAppleDevices(ip string) DeviceInfo {
 // detectWindowsDevices detects Windows devices using NetBIOS
 func (ahd *AdvancedHostnameDetector) detectWindowsDevices(ip string) DeviceInfo {
 	info := DeviceInfo{
-		IP:               ip,
-		DetectionMethods: []string{"netbios"},
-		Services:         make(map[string]string),
+		IP:       ip,
+		Services: make(map[string]string),
 	}
 
 	// Check for NetBIOS ports (137, 139, 445)
@@ -229,9 +223,8 @@ func (ahd *AdvancedHostnameDetector) detectWindowsDevices(ip string) DeviceInfo 
 // detectSNMPInfo detects device info using SNMP
 func (ahd *AdvancedHostnameDetector) detectSNMPInfo(ip string) DeviceInfo {
 	info := DeviceInfo{
-		IP:               ip,
-		DetectionMethods: []string{"snmp"},
-		Services:         make(map[string]string),
+		IP:       ip,
+		Services: make(map[string]string),
 	}
 
 	if ahd.isPortOpen(ip, 161) {
@@ -246,9 +239,8 @@ func (ahd *AdvancedHostnameDetector) detectSNMPInfo(ip string) DeviceInfo {
 // analyzeHTTPBanners analyzes HTTP server banners for OS/device information
 func (ahd *AdvancedHostnameDetector) analyzeHTTPBanners(asset Asset) DeviceInfo {
 	info := DeviceInfo{
-		IP:               asset.IP,
-		DetectionMethods: []string{"http_banner"},
-		Services:         make(map[string]string),
+		IP:       asset.IP,
+		Services: make(map[string]string),
 	}
 
 	for _, port := range asset.OpenPorts {
@@ -297,9 +289,8 @@ func (ahd *AdvancedHostnameDetector) analyzeHTTPBanners(asset Asset) DeviceInfo 
 // analyzeSSHBanners analyzes SSH banners for OS information
 func (ahd *AdvancedHostnameDetector) analyzeSSHBanners(asset Asset) DeviceInfo {
 	info := DeviceInfo{
-		IP:               asset.IP,
-		DetectionMethods: []string{"ssh_banner"},
-		Services:         make(map[string]string),
+		IP:       asset.IP,
+		Services: make(map[string]string),
 	}
 
 	for _, port := range asset.OpenPorts {
@@ -547,7 +538,4 @@ func (ahd *AdvancedHostnameDetector) mergeDeviceInfo(target *DeviceInfo, source 
 	for key, value := range source.Services {
 		target.Services[key] = value
 	}
-	
-	// Merge detection methods
-	target.DetectionMethods = append(target.DetectionMethods, source.DetectionMethods...)
 }
